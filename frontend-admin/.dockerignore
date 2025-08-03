@@ -1,3 +1,13 @@
+
 node_modules
 dist
+.vite
 .env
+.git
+.DS_Store
+node_modules/
+dist/
+build/
+.git/
+*.log
+.cache/

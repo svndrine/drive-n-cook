@@ -23,10 +23,10 @@ services:
     build:
       context: ../backend
     ports:
-      - "8000:8000"
+      - "8000:8000"  # Pour artisan serve
+      # - "8000:80"   # Pour Apache (décommentez si vous utilisez Apache)
     volumes:
-      - ../backend:/var/www
-    working_dir: /var/www
+      - ../backend:/var/www/html  # Changé pour correspondre au WORKDIR
     environment:
       - DB_CONNECTION=mysql
       - DB_HOST=mysql
@@ -46,7 +46,6 @@ services:
     volumes:
       - ../frontend-admin:/app
     working_dir: /app
-    # Pass --host to Vite to make it accessible from outside the container
     command: sh -c "npm install && npm run dev -- --host"
 
   frontend-franchise:
@@ -57,7 +56,6 @@ services:
     volumes:
       - ../frontend-franchise:/app
     working_dir: /app
-    # Pass --host to Vite to make it accessible from outside the container
     command: sh -c "npm install && npm run dev -- --host"
 
 volumes:
