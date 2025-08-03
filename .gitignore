@@ -1,0 +1,21 @@
+# Node
+node_modules
+dist
+.env
+.vite
+
+# Laravel
+/vendor
+/storage/*.key
+/storage/app/public
+/storage/framework/*
+/storage/logs
+.env
+.phpunit.result.cache
+
+# Docker
+docker-compose.override.yml
+*.log
+
+# Mac / système
+.DS_Store

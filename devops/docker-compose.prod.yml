@@ -1,0 +1,34 @@
+
+services:
+
+  mysql:
+    image: mysql:8
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: drive_n_cook
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: ../backend
+    ports:
+      - "8000:80"
+    depends_on:
+      - mysql
+
+  frontend-admin:
+    build:
+      context: ../frontend-admin
+    ports:
+      - "5173:5173"
+
+  frontend-franchise:
+    build:
+      context: ../frontend-franchise
+    ports:
+      - "5174:5173"
+
+volumes:
+  mysql_data:
