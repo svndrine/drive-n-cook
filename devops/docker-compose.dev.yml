@@ -23,8 +23,7 @@ services:
     build:
       context: ../backend
     ports:
-      - "8000:8000"  # Pour artisan serve
-      # - "8000:80"   # Pour Apache (décommentez si vous utilisez Apache)
+      - "8000:8000"
     volumes:
       - ../backend:/var/www/html  # Changé pour correspondre au WORKDIR
     environment:
