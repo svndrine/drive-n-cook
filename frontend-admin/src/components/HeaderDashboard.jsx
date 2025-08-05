@@ -1,3 +1,4 @@
+// frontend-admin/src/components/HeaderDashboard.jsx
 import React from 'react';
 import {
     Bell,

@@ -1,32 +1,15 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { useFranchisee } from './../context/FranchiseeContext.jsx';
 
 function Login() {
+    // Utilisation du hook useFranchisee pour accéder au contexte
+    const { handleLogin, error, loading } = useFranchisee();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
-
-        try {
-            const response = await axios.post('http://localhost:8000/api/login', {
-                email,
-                password
-            });
-
-            // On suppose que tu veux stocker un token plus tard ici
-            // localStorage.setItem('token', response.data.token); // à activer quand tu enverras un token
-
-            alert(response.data.message); // "Connexion réussie"
-        } catch (err) {
-            if (err.response) {
-                setError(err.response.data.message);
-            } else {
-                setError("Erreur de connexion");
-            }
-        }
+        handleLogin(email, password);
     };
 
     return (
@@ -65,9 +48,10 @@ function Login() {
                     </div>
                     <button
                         type="submit"
-                        className="w-full bg-black text-white py-2 rounded-md hover:bg-gray-800"
+                        disabled={loading}
+                        className={`w-full py-2 rounded-md transition-colors duration-300 ${loading ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-black text-white hover:bg-gray-800'}`}
                     >
-                        Se connecter
+                        {loading ? 'Connexion...' : 'Se connecter'}
                     </button>
                     <a href="#" className="block text-center text-sm text-gray-600 hover:text-gray-500 mt-4">
                         Mot de passe oublié ?

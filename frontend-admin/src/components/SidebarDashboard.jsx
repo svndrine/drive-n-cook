@@ -1,5 +1,6 @@
-import React from 'react';
-import { Home, Users, Bell, User, Menu, X } from 'lucide-react';
+// frontend-admin/src/components/SidebarDashboard.jsx
+import React, { useState } from 'react';
+import { Home, Users, Bell, User, Menu, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 /**
  * Composant de la barre latérale de navigation.
@@ -12,11 +13,19 @@ import { Home, Users, Bell, User, Menu, X } from 'lucide-react';
  * @param {string} props.theme - Thème actuel.
  */
 const SidebarDashboard = ({ isSidebarOpen, currentView, setCurrentView, toggleSidebar, user, theme }) => {
+    // État local pour le menu déroulant des franchisés
+    const [isFranchiseeMenuOpen, setIsFranchiseeMenuOpen] = useState(false);
+
     const sidebarBgClass = theme === 'dark' ? 'bg-gray-800' : 'bg-white';
     const textColorClass = theme === 'dark' ? 'text-white' : 'text-gray-800';
     const borderColorClass = theme === 'dark' ? 'border-gray-700' : 'border-gray-200';
     const hoverBgClass = theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
     const activeBgClass = 'bg-blue-600';
+
+    // Fonction pour basculer la visibilité du menu des franchisés
+    const toggleFranchiseeMenu = () => {
+        setIsFranchiseeMenuOpen(prev => !prev);
+    };
 
     return (
         <>
@@ -29,11 +38,15 @@ const SidebarDashboard = ({ isSidebarOpen, currentView, setCurrentView, toggleSi
             <aside
                 className={`fixed inset-y-0 left-0 z-40 flex-shrink-0 transition-all duration-300 ease-in-out ${sidebarBgClass} ${textColorClass} ${isSidebarOpen ? 'w-64' : 'w-20'} lg:static lg:translate-x-0 ${!isSidebarOpen ? '-translate-x-full lg:w-20' : 'w-64'}`}
             >
+                {/* En-tête de la barre latérale */}
                 <div className={`flex items-center justify-center h-20 border-b ${borderColorClass}`}>
                     <h1 className={`text-2xl font-bold truncate ${!isSidebarOpen && 'hidden'}`}>Admin</h1>
                 </div>
+
+                {/* Navigation principale */}
                 <nav className="flex-1 overflow-y-auto p-4">
                     <ul className="space-y-2">
+                        {/* Tableau de bord */}
                         <li>
                             <a
                                 href="#"
@@ -44,16 +57,52 @@ const SidebarDashboard = ({ isSidebarOpen, currentView, setCurrentView, toggleSi
                                 <span className={`ml-4 text-sm font-medium whitespace-nowrap ${!isSidebarOpen && 'hidden'}`}>Tableau de bord</span>
                             </a>
                         </li>
+
+                        {/* Menu déroulant des franchisés */}
                         <li>
-                            <a
-                                href="#"
-                                onClick={() => { setCurrentView('franchisees'); if (window.innerWidth < 1024) toggleSidebar(); }}
-                                className={`flex items-center py-2 px-3 rounded-lg ${hoverBgClass} ${currentView === 'franchisees' ? activeBgClass + ' text-white' : ''}`}
+                            <button
+                                onClick={toggleFranchiseeMenu}
+                                className={`w-full flex items-center justify-between py-2 px-3 rounded-lg ${hoverBgClass}`}
                             >
-                                <Users size={24} />
-                                <span className={`ml-4 text-sm font-medium whitespace-nowrap ${!isSidebarOpen && 'hidden'}`}>Franchisés</span>
-                            </a>
+                                <div className="flex items-center">
+                                    <Users size={24} />
+                                    <span className={`ml-4 text-sm font-medium whitespace-nowrap ${!isSidebarOpen && 'hidden'}`}>Franchisés</span>
+                                </div>
+                                {isSidebarOpen && (
+                                    isFranchiseeMenuOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />
+                                )}
+                            </button>
+                            {isFranchiseeMenuOpen && isSidebarOpen && (
+                                <ul className="ml-8 mt-2 space-y-1">
+                                    <li>
+                                        <button
+                                            onClick={() => { setCurrentView('franchisees'); if (window.innerWidth < 1024) toggleSidebar(); }}
+                                            className={`block py-2 px-3 rounded-lg text-sm ${hoverBgClass} ${currentView === 'franchisees' ? activeBgClass + ' text-white' : ''}`}
+                                        >
+                                            View
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button
+                                            onClick={() => { setCurrentView('pendingFranchisees'); if (window.innerWidth < 1024) toggleSidebar(); }}
+                                            className={`block py-2 px-3 rounded-lg text-sm ${hoverBgClass} ${currentView === 'pendingFranchisees' ? activeBgClass + ' text-white' : ''}`}
+                                        >
+                                            Tous les franchisés
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button
+                                            onClick={() => { setCurrentView('disabledFranchisees'); if (window.innerWidth < 1024) toggleSidebar(); }}
+                                            className={`block py-2 px-3 rounded-lg text-sm ${hoverBgClass} ${currentView === 'disabledFranchisees' ? activeBgClass + ' text-white' : ''}`}
+                                        >
+                                            En attente
+                                        </button>
+                                    </li>
+                                </ul>
+                            )}
                         </li>
+
+                        {/* Notifications */}
                         <li>
                             <a
                                 href="#"
@@ -64,6 +113,8 @@ const SidebarDashboard = ({ isSidebarOpen, currentView, setCurrentView, toggleSi
                                 <span className={`ml-4 text-sm font-medium whitespace-nowrap ${!isSidebarOpen && 'hidden'}`}>Notifications</span>
                             </a>
                         </li>
+
+                        {/* Administrateurs (visible uniquement pour les superadmins) */}
                         {user?.role === 'superadmin' && (
                             <li>
                                 <a

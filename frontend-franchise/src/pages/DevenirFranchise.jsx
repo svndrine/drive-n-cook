@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createFranchisee } from '../services/api.js';
 
 // Composant DevenirFranchise
 function DevenirFranchise() {
@@ -52,65 +53,32 @@ function DevenirFranchise() {
         setStatus({ loading: true, message: null, isError: false });
 
         try {
-            // Envoi de la requête POST à l'API Laravel
-            const response = await fetch('http://localhost:8000/api/franchisees', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    first_name: formData.first_name,
-                    last_name: formData.last_name,
-                    email: formData.email,
-                    phone: formData.phone,
-                    address: formData.address,
-                    zip_code: formData.zip_code,
-                    city: formData.city,
-                    current_situation: formData.current_situation,
-                    desired_zone: formData.desired_zone,
-                    financial_contribution: formData.financial_contribution
-                }),
-            });
-
-            // Vérifie si la réponse n'est pas OK (statut 200-299)
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Erreur lors de la soumission de la demande.');
-            }
-
-            // Affiche un message de succès
+            const response = await createFranchisee(formData);
             setStatus({
                 loading: false,
-                message: 'Votre demande a été envoyée avec succès !',
+                message: response.message,
                 isError: false,
             });
-
-            // Réinitialise le formulaire après 5 secondes
-            setTimeout(() => {
-                setStep(1);
-                setFormData({
-                    first_name: '',
-                    last_name: '',
-                    email: '',
-                    phone: '',
-                    address: '',
-                    zip_code: '',
-                    city: '',
-                    current_situation: 'Demandeur d\'emploi',
-                    desired_zone: '',
-                    financial_contribution: '< 60.000 €'
-                });
-                setStatus({ loading: false, message: null, isError: false });
-            }, 5000);
-
+            // Réinitialise le formulaire
+            setStep(1);
+            setFormData({
+                first_name: '',
+                last_name: '',
+                email: '',
+                phone: '',
+                address: '',
+                zip_code: '',
+                city: '',
+                current_situation: 'Demandeur d\'emploi',
+                desired_zone: '',
+                financial_contribution: '< 60.000 €'
+            });
         } catch (error) {
-            // Affiche un message d'erreur en cas de problème
             setStatus({
                 loading: false,
-                message: error.message || 'Une erreur est survenue. Veuillez réessayer.',
+                message: error.message,
                 isError: true,
             });
-            console.error('Erreur API:', error);
         }
     };
 
@@ -300,7 +268,6 @@ function DevenirFranchise() {
                             </button>
                             <button
                                 type="submit"
-                                onClick={handleSubmit}
                                 disabled={status.loading} // Désactiver le bouton pendant le chargement
                                 className={`px-6 py-3 rounded-md font-bold text-lg transition-colors duration-300 ${status.loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-800'}`}
                             >
@@ -381,7 +348,7 @@ function DevenirFranchise() {
                     {/* Section Formulaire */}
                     <div className="w-full md:w-1/2 p-10 bg-white rounded-xl shadow-lg">
                         <h2 className="text-3xl font-bold text-center mb-8">Faire la demande</h2>
-                        <form className="space-y-6">
+                        <form className="space-y-6" onSubmit={handleSubmit}>
                             {/* Affichage du message de statut */}
                             {status.message && (
                                 <div className={`p-4 rounded-md text-white font-medium text-center ${status.isError ? 'bg-red-500' : 'bg-green-500'}`}>

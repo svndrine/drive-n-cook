@@ -1,16 +1,24 @@
 import React, { useState } from 'react';
 import { useUser } from '../context/UserContext.jsx';
+import { login } from '../services/api.js'; // Import de la fonction d'API
 
 function Login() {
     // Utilisation du hook useUser pour accéder au contexte
     const { handleLogin, error, loading } = useUser();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [apiError, setApiError] = useState(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        // Appel de la fonction handleLogin du contexte
-        handleLogin(email, password);
+        try {
+            // Appel de la fonction d'API pour la connexion
+            const data = await login(email, password);
+            // Une fois l'API réussie, on appelle la fonction handleLogin du contexte
+            handleLogin(data.user, data.access_token);
+        } catch (err) {
+            setApiError(err.message);
+        }
     };
 
     return (
@@ -21,6 +29,7 @@ function Login() {
                 </h1>
                 {/* Affiche l'erreur si elle existe */}
                 {error && <p className="bg-red-100 text-red-700 p-3 rounded-md text-center mb-4">{error}</p>}
+                {apiError && <p className="bg-red-100 text-red-700 p-3 rounded-md text-center mb-4">{apiError}</p>}
                 <form className="space-y-6" onSubmit={handleSubmit}>
                     <div>
                         <label htmlFor="email" className="block text-sm font-medium text-gray-700">
