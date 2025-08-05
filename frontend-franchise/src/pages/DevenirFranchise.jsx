@@ -1,50 +1,176 @@
 import React, { useState } from 'react';
 
+// Composant DevenirFranchise
 function DevenirFranchise() {
+    // État pour gérer la progression du formulaire
     const [step, setStep] = useState(1);
 
+    // État pour stocker toutes les données du formulaire
+    const [formData, setFormData] = useState({
+        first_name: '',
+        last_name: '',
+        email: '',
+        phone: '',
+        address: '',
+        zip_code: '',
+        city: '',
+        current_situation: 'Demandeur d\'emploi',
+        desired_zone: '',
+        financial_contribution: '< 60.000 €'
+    });
+
+    // État pour gérer les messages de l'API (succès/erreur)
+    const [status, setStatus] = useState({
+        loading: false,
+        message: null,
+        isError: false,
+    });
+
+    // Gère la mise à jour des champs du formulaire
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prevState => ({
+            ...prevState,
+            [name]: value
+        }));
+    };
+
+    // Passe à l'étape suivante
     const handleNextStep = (e) => {
         e.preventDefault();
         setStep(step + 1);
     };
 
+    // Retourne à l'étape précédente
     const handlePreviousStep = () => {
         setStep(step - 1);
     };
 
-    const handleSubmit = (e) => {
+    // Gère la soumission du formulaire vers l'API
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Logique de soumission du formulaire
-        console.log("Formulaire soumis !");
-        // Remplacer alert() par une modal personnalisée
-        // Affichez un message de confirmation dans la console pour le moment
-        console.log("Votre demande a été envoyée avec succès !");
+        setStatus({ loading: true, message: null, isError: false });
+
+        try {
+            // Envoi de la requête POST à l'API Laravel
+            const response = await fetch('http://localhost:8000/api/franchisees', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    first_name: formData.first_name,
+                    last_name: formData.last_name,
+                    email: formData.email,
+                    phone: formData.phone,
+                    address: formData.address,
+                    zip_code: formData.zip_code,
+                    city: formData.city,
+                    current_situation: formData.current_situation,
+                    desired_zone: formData.desired_zone,
+                    financial_contribution: formData.financial_contribution
+                }),
+            });
+
+            // Vérifie si la réponse n'est pas OK (statut 200-299)
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Erreur lors de la soumission de la demande.');
+            }
+
+            // Affiche un message de succès
+            setStatus({
+                loading: false,
+                message: 'Votre demande a été envoyée avec succès !',
+                isError: false,
+            });
+
+            // Réinitialise le formulaire après 5 secondes
+            setTimeout(() => {
+                setStep(1);
+                setFormData({
+                    first_name: '',
+                    last_name: '',
+                    email: '',
+                    phone: '',
+                    address: '',
+                    zip_code: '',
+                    city: '',
+                    current_situation: 'Demandeur d\'emploi',
+                    desired_zone: '',
+                    financial_contribution: '< 60.000 €'
+                });
+                setStatus({ loading: false, message: null, isError: false });
+            }, 5000);
+
+        } catch (error) {
+            // Affiche un message d'erreur en cas de problème
+            setStatus({
+                loading: false,
+                message: error.message || 'Une erreur est survenue. Veuillez réessayer.',
+                isError: true,
+            });
+            console.error('Erreur API:', error);
+        }
     };
 
+    // Affiche le formulaire en fonction de l'étape actuelle
     const renderFormStep = () => {
         switch (step) {
             case 1:
                 return (
                     <>
-                        {/* Champ Nom */}
-                        <div>
-                            <label htmlFor="nom" className="block text-sm font-medium text-gray-700">Nom *</label>
-                            <input type="text" id="nom" name="nom" required className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm" />
-                        </div>
                         {/* Champ Prénom */}
                         <div>
-                            <label htmlFor="prenom" className="block text-sm font-medium text-gray-700">Prénom *</label>
-                            <input type="text" id="prenom" name="prenom" required className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm" />
+                            <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">Prénom *</label>
+                            <input
+                                type="text"
+                                id="first_name"
+                                name="first_name"
+                                value={formData.first_name}
+                                onChange={handleChange}
+                                required
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                            />
+                        </div>
+                        {/* Champ Nom */}
+                        <div>
+                            <label htmlFor="last_name" className="block text-sm font-medium text-gray-700">Nom *</label>
+                            <input
+                                type="text"
+                                id="last_name"
+                                name="last_name"
+                                value={formData.last_name}
+                                onChange={handleChange}
+                                required
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                            />
                         </div>
                         {/* Champ Email */}
                         <div>
                             <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email *</label>
-                            <input type="email" id="email" name="email" required className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm" />
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={handleChange}
+                                required
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                            />
                         </div>
                         {/* Champ Téléphone */}
                         <div>
-                            <label htmlFor="telephone" className="block text-sm font-medium text-gray-700">Téléphone *</label>
-                            <input type="tel" id="telephone" name="telephone" required className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm" />
+                            <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Téléphone *</label>
+                            <input
+                                type="tel"
+                                id="phone"
+                                name="phone"
+                                value={formData.phone}
+                                onChange={handleChange}
+                                required
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                            />
                         </div>
                         <div className="flex justify-end mt-6">
                             <button
@@ -62,23 +188,50 @@ function DevenirFranchise() {
                     <>
                         {/* Champ Adresse */}
                         <div>
-                            <label htmlFor="adresse" className="block text-sm font-medium text-gray-700">Adresse</label>
-                            <input type="text" id="adresse" name="adresse" className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm" />
+                            <label htmlFor="address" className="block text-sm font-medium text-gray-700">Adresse</label>
+                            <input
+                                type="text"
+                                id="address"
+                                name="address"
+                                value={formData.address}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                            />
                         </div>
                         {/* Champ Code Postal */}
                         <div>
-                            <label htmlFor="code_postal" className="block text-sm font-medium text-gray-700">Code Postal</label>
-                            <input type="text" id="code_postal" name="code_postal" className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm" />
+                            <label htmlFor="zip_code" className="block text-sm font-medium text-gray-700">Code Postal</label>
+                            <input
+                                type="text"
+                                id="zip_code"
+                                name="zip_code"
+                                value={formData.zip_code}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                            />
                         </div>
                         {/* Champ Ville */}
                         <div>
-                            <label htmlFor="ville" className="block text-sm font-medium text-gray-700">Ville</label>
-                            <input type="text" id="ville" name="ville" className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm" />
+                            <label htmlFor="city" className="block text-sm font-medium text-gray-700">Ville</label>
+                            <input
+                                type="text"
+                                id="city"
+                                name="city"
+                                value={formData.city}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                            />
                         </div>
                         {/* Champ Situation actuelle */}
                         <div>
-                            <label htmlFor="situation" className="block text-sm font-medium text-gray-700">Situation actuelle</label>
-                            <select id="situation" name="situation" className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm">
+                            <label htmlFor="current_situation" className="block text-sm font-medium text-gray-700">Situation actuelle</label>
+                            <select
+                                id="current_situation"
+                                name="current_situation"
+                                value={formData.current_situation}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                            >
                                 <option>Demandeur d'emploi</option>
                                 <option>Salarié</option>
                                 <option>Entrepreneur</option>
@@ -109,13 +262,27 @@ function DevenirFranchise() {
                     <>
                         {/* Champ Zone souhaitée */}
                         <div>
-                            <label htmlFor="zone_souhaitee" className="block text-sm font-medium text-gray-700">Zone restaurant ou région souhaitée *</label>
-                            <input type="text" id="zone_souhaitee" name="zone_souhaitee" required className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm" />
+                            <label htmlFor="desired_zone" className="block text-sm font-medium text-gray-700">Zone restaurant ou région souhaitée *</label>
+                            <input
+                                type="text"
+                                id="desired_zone"
+                                name="desired_zone"
+                                value={formData.desired_zone}
+                                onChange={handleChange}
+                                required
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                            />
                         </div>
                         {/* Champ Apport */}
                         <div>
-                            <label htmlFor="apport" className="block text-sm font-medium text-gray-700">Apport (hors emprunt bancaire)</label>
-                            <select id="apport" name="apport" className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm">
+                            <label htmlFor="financial_contribution" className="block text-sm font-medium text-gray-700">Apport (hors emprunt bancaire)</label>
+                            <select
+                                id="financial_contribution"
+                                name="financial_contribution"
+                                value={formData.financial_contribution}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                            >
                                 <option>&lt; 60.000 €</option>
                                 <option>60.000 - 80.000 €</option>
                                 <option>80.000 - 200.000 €</option>
@@ -134,9 +301,10 @@ function DevenirFranchise() {
                             <button
                                 type="submit"
                                 onClick={handleSubmit}
-                                className="bg-black text-white px-6 py-3 rounded-md font-bold text-lg hover:bg-gray-800 transition-colors duration-300"
+                                disabled={status.loading} // Désactiver le bouton pendant le chargement
+                                className={`px-6 py-3 rounded-md font-bold text-lg transition-colors duration-300 ${status.loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-800'}`}
                             >
-                                Envoyer ma demande
+                                {status.loading ? 'Envoi...' : 'Envoyer ma demande'}
                             </button>
                         </div>
                     </>
@@ -214,6 +382,12 @@ function DevenirFranchise() {
                     <div className="w-full md:w-1/2 p-10 bg-white rounded-xl shadow-lg">
                         <h2 className="text-3xl font-bold text-center mb-8">Faire la demande</h2>
                         <form className="space-y-6">
+                            {/* Affichage du message de statut */}
+                            {status.message && (
+                                <div className={`p-4 rounded-md text-white font-medium text-center ${status.isError ? 'bg-red-500' : 'bg-green-500'}`}>
+                                    {status.message}
+                                </div>
+                            )}
                             {renderFormStep()}
                         </form>
                     </div>
