@@ -116,11 +116,14 @@ export async function getFranchisees() {
     const token = localStorage.getItem("access_token");
 
     const response = await fetch(`${API_URL}/franchisees`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
     });
 
     if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({ message: response.statusText }));
         throw new Error(error.message || "Erreur lors de la récupération des franchisés");
     }
 
@@ -128,22 +131,69 @@ export async function getFranchisees() {
 }
 
 /**
- * Fonction pour changer le statut (actif/inactif) d'un franchisé.
+ * Fonction pour valider un franchisé - utilise la route existante toggleStatus.
+ * @param {number} id - L'ID du franchisé.
+ * @returns {Promise<object>} Les données de réponse de l'API.
  */
-export async function toggleFranchiseeStatus(id, is_active) {
+export async function validateFranchisee(id) {
+    return await toggleFranchiseeStatus(id, true);
+}
+
+/**
+ * Fonction pour rejeter un franchisé - utilise la nouvelle route reject.
+ * @param {number} id - L'ID du franchisé.
+ * @returns {Promise<object>} Les données de réponse de l'API.
+ */
+export async function rejectFranchisee(id) {
     const token = localStorage.getItem("access_token");
 
-    const response = await fetch(`${API_URL}franchisees/{franchisee}/status`, {
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/franchisees/${id}/reject`, {
         method: "PATCH",
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || "Erreur lors du rejet du franchisé");
+    }
+
+    return await response.json();
+}
+
+/**
+ * Fonction pour changer le statut actif/inactif d'un franchisé.
+ * @param {number} id - L'ID du franchisé.
+ * @param {boolean} is_active - Le nouveau statut actif.
+ * @returns {Promise<object>} Les données de réponse de l'API.
+ */
+export async function toggleFranchiseeStatus(id, is_active) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    // Correction de l'URL - ajout du / manquant
+    const response = await fetch(`${API_URL}/franchisees/${id}/status`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
         },
         body: JSON.stringify({ is_active })
     });
 
     if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({ message: response.statusText }));
         throw new Error(error.message || "Erreur lors de la mise à jour du statut du franchisé");
     }
 
@@ -159,12 +209,13 @@ export async function logout() {
     const response = await fetch(`${API_URL}/logout`, {
         method: "POST",
         headers: {
-            "Authorization": `Bearer ${token}`
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
         }
     });
 
     if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({ message: response.statusText }));
         throw new Error(error.message || "Erreur lors de la déconnexion");
     }
 
@@ -172,11 +223,15 @@ export async function logout() {
 }
 
 /**
- * Récupère la liste des franchisés non activés.
+ * Récupère la liste des franchisés non validés.
  * @returns {Promise<array>} Liste des franchisés en attente de validation.
  */
 export async function getUnvalidatedFranchisees() {
     const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
 
     const response = await fetch(`${API_URL}/franchisees/unvalidated`, {
         method: "GET",
@@ -188,19 +243,22 @@ export async function getUnvalidatedFranchisees() {
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des franchisés non activés`);
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des franchisés non validés`);
     }
 
     return await response.json();
 }
 
-
 /**
- * Récupère la liste des franchisés activés (en attente de paiement).
- * @returns {Promise<array>} Liste des franchisés activés.
+ * Récupère la liste des franchisés validés (en attente de paiement).
+ * @returns {Promise<array>} Liste des franchisés validés.
  */
 export async function getValidatedFranchisees() {
     const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
 
     const response = await fetch(`${API_URL}/franchisees/validated`, {
         method: "GET",
@@ -212,12 +270,11 @@ export async function getValidatedFranchisees() {
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des franchisés activés`);
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des franchisés validés`);
     }
 
     return await response.json();
 }
-
 
 /**
  * Récupère les informations détaillées d'un franchisé par son ID.
@@ -226,6 +283,10 @@ export async function getValidatedFranchisees() {
  */
 export async function getFranchiseeById(id) {
     const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
 
     const response = await fetch(`${API_URL}/franchisees/${id}`, {
         method: "GET",

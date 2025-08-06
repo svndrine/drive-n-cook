@@ -9,75 +9,113 @@ const API_URL = "http://localhost:8000/api";
  * @returns {Promise<object>} Les données de réponse de l'API.
  */
 export async function login(email, password) {
-    const response = await fetch(`${API_URL}/login`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-    });
+    try {
+        const response = await fetch(`${API_URL}/login`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            body: JSON.stringify({ email, password }),
+        });
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Erreur de connexion");
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({
+                message: `Erreur HTTP ${response.status}`
+            }));
+            throw new Error(error.message || "Erreur de connexion");
+        }
+
+        const data = await response.json();
+
+        // Stocker le token dans localStorage
+        if (data.access_token) {
+            localStorage.setItem("access_token", data.access_token);
+        }
+
+        return data;
+    } catch (error) {
+        console.error("Erreur lors de la connexion:", error);
+        throw error;
     }
-
-    return await response.json();
 }
 
 /**
- * Fonction pour créer un nouvel administrateur.
- * Cette action est réservée aux superadmins.
- * @param {object} adminData - Les données du nouvel administrateur.
- * @returns {Promise<object>} Les données de réponse de l'API.
+ * Fonction pour récupérer les informations de l'utilisateur connecté.
+ * @returns {Promise<object>} Les données de l'utilisateur.
  */
-export async function createAdmin(adminData) {
-    // Utilise le token stocké dans UserContext.jsx
+export async function getCurrentUser() {
     const token = localStorage.getItem("access_token");
 
-    const response = await fetch(`${API_URL}/admins`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify(adminData),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Erreur lors de la création de l'admin");
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
     }
 
-    return await response.json();
+    try {
+        const response = await fetch(`${API_URL}/me`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                // Token expiré, nettoyer le localStorage
+                localStorage.removeItem("access_token");
+                throw new Error("Session expirée, veuillez vous reconnecter");
+            }
+            const error = await response.json().catch(() => ({
+                message: `Erreur HTTP ${response.status}`
+            }));
+            throw new Error(error.message || "Erreur lors de la récupération des données utilisateur");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Erreur getCurrentUser:", error);
+        throw error;
+    }
 }
 
 /**
- * Fonction pour supprimer un administrateur.
- * ATTENTION : Il n'y a pas de route correspondante dans le backend.
- * Cette fonction ne fonctionnera pas tant que la route et la méthode du contrôleur n'auront pas été ajoutées.
- * @param {number} adminId - L'ID de l'administrateur à supprimer.
- * @returns {Promise<object>} Les données de réponse de l'API.
+ * Fonction pour créer un intention de paiement Stripe.
+ * @returns {Promise<object>} Les données de l'intention de paiement.
  */
-export async function deleteAdmin(adminId) {
-    // Utilise le token stocké dans UserContext.jsx
+export async function createPaymentIntent() {
     const token = localStorage.getItem("access_token");
 
-    const response = await fetch(`${API_URL}/admins/${adminId}`, {
-        method: "DELETE",
-        headers: {
-            "Authorization": `Bearer ${token}`,
-        },
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Erreur lors de la suppression de l'admin");
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
     }
 
-    return await response.json();
-}
+    try {
+        const response = await fetch(`${API_URL}/franchisees/create-payment-intent`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            }
+        });
 
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({
+                message: `Erreur HTTP ${response.status}`
+            }));
+            throw new Error(error.message || "Erreur lors de la création de l'intention de paiement");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Erreur createPaymentIntent:", error);
+        throw error;
+    }
+}
 
 /**
  * Fonction pour soumettre une nouvelle demande de franchisé à l'API.
@@ -91,23 +129,19 @@ export const createFranchisee = async (formData) => {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest', // Important pour Laravel
+                'X-Requested-With': 'XMLHttpRequest',
             },
             body: JSON.stringify(formData)
         });
 
-        // Vérifiez d'abord si la réponse est OK
         if (!response.ok) {
-            // Essayez de lire la réponse comme texte d'abord
             const textResponse = await response.text();
             console.error('Réponse brute du serveur:', textResponse);
 
-            // Essayez de parser en JSON si possible
             try {
                 const errorData = JSON.parse(textResponse);
                 throw new Error(errorData.message || `Erreur HTTP: ${response.status}`);
             } catch (parseError) {
-                // Si ce n'est pas du JSON, retournez le texte brut
                 throw new Error(`Erreur serveur: ${textResponse.substring(0, 200)}...`);
             }
         }
@@ -119,3 +153,39 @@ export const createFranchisee = async (formData) => {
         throw error;
     }
 };
+
+/**
+ * Fonction pour déconnecter l'utilisateur.
+ */
+export async function logout() {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        return; // Pas de token, déjà déconnecté
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/logout`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            }
+        });
+
+        // Nettoyer le localStorage même si la requête échoue
+        localStorage.removeItem("access_token");
+
+        if (!response.ok) {
+            console.warn("Erreur lors de la déconnexion côté serveur, mais token supprimé localement");
+        }
+
+        return true;
+    } catch (error) {
+        console.error("Erreur logout:", error);
+        // Nettoyer quand même le localStorage
+        localStorage.removeItem("access_token");
+        throw error;
+    }
+}

@@ -35,9 +35,10 @@ class AuthController extends Controller
             return response()->json(['message' => 'Compte inactif, veuillez attendre validation'], 403);
         }
 
-        // 🔒 Génération du token Bearer
+        // Génération du token Bearer
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // CORRECTION: Un seul return avec toutes les données
         return response()->json([
             'message' => 'Connexion réussie',
             'access_token' => $token,
@@ -48,11 +49,9 @@ class AuthController extends Controller
                 'role' => $user->role,
                 'firstname' => $user->firstname,
                 'lastname' => $user->lastname,
+                'is_active' => $user->is_active,
             ]
         ]);
-
-        // Si l'authentification est réussie et que le compte est actif, renvoie une réponse de succès
-        return response()->json(['message' => 'Connexion réussie']);
     }
 
     public function setPassword(Request $request)
@@ -90,6 +89,4 @@ class AuthController extends Controller
             'message' => 'Déconnexion réussie'
         ]);
     }
-
-
 }

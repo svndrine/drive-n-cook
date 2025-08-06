@@ -12,7 +12,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // Ajouter tes alias de middleware ici
+        // Ajouter notre middleware CORS personnalisé
+        $middleware->api(prepend: [
+            \App\Http\Middleware\HandleCors::class,
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
+
+        // Middleware aliases
         $middleware->alias([
             'superadmin' => \App\Http\Middleware\IsSuperadmin::class,
         ]);
