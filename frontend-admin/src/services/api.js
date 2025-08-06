@@ -133,7 +133,7 @@ export async function getFranchisees() {
 export async function toggleFranchiseeStatus(id, is_active) {
     const token = localStorage.getItem("access_token");
 
-    const response = await fetch(`${API_URL}/franchisees/${id}/status`, {
+    const response = await fetch(`${API_URL}franchisees/{franchisee}/status`, {
         method: "PATCH",
         headers: {
             "Content-Type": "application/json",
@@ -213,6 +213,31 @@ export async function getValidatedFranchisees() {
     if (!response.ok) {
         const error = await response.json().catch(() => ({ message: response.statusText }));
         throw new Error(error.message || `Erreur ${response.status} lors de la récupération des franchisés activés`);
+    }
+
+    return await response.json();
+}
+
+
+/**
+ * Récupère les informations détaillées d'un franchisé par son ID.
+ * @param {number} id - L'ID du franchisé.
+ * @returns {Promise<object>} Données complètes du franchisé.
+ */
+export async function getFranchiseeById(id) {
+    const token = localStorage.getItem("access_token");
+
+    const response = await fetch(`${API_URL}/franchisees/${id}`, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération du franchisé`);
     }
 
     return await response.json();

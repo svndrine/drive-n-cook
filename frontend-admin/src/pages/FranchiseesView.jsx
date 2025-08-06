@@ -1,30 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, XCircle, Info } from 'lucide-react';
+import { X, CheckCircle, XCircle, Info, Mail, Phone, MapPin, Briefcase, DollarSign, Globe } from 'lucide-react';
 import { getFranchisees, toggleFranchiseeStatus } from '../services/api';
 
+// Composant modal pour afficher les détails du franchisé
 const FranchiseeDetailsModal = ({ isOpen, onClose, franchisee, theme }) => {
-    if (!isOpen || !franchisee) return null;
+    if (!isOpen || !franchisee) {
+        console.log("Modal: Not open or no franchisee data.", { isOpen, franchisee });
+        return null;
+    }
+
+    // Définition des classes de thème pour le modal
+    const isDarkMode = theme === 'dark';
+    const modalBgColor = isDarkMode ? 'bg-gray-800' : 'bg-white';
+    const textColor = isDarkMode ? 'text-white' : 'text-gray-800';
+    const subTextColor = isDarkMode ? 'text-gray-300' : 'text-gray-600';
+    const borderColor = isDarkMode ? 'border-gray-700' : 'border-gray-200';
+    const iconColor = isDarkMode ? 'text-gray-400' : 'text-gray-600';
+
+    // Composant utilitaire pour les lignes de détail dans le modal
+    const ModalDetailItem = ({ icon, label, value }) => (
+        <div className="flex items-start py-2">
+            {icon && <span className={`${iconColor} mr-3 mt-1 flex-shrink-0`}>{icon}</span>}
+            <div className="flex-1">
+                <p className={`text-base font-medium ${subTextColor}`}>{label} :</p>
+                <p className={`text-lg ${textColor}`}>{value}</p>
+            </div>
+        </div>
+    );
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-75 p-4">
-            <div className={`rounded-lg shadow-xl p-6 w-full max-w-lg ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
-                <div className={`flex justify-between items-center border-b pb-3 mb-4 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className={`rounded-lg shadow-xl p-6 w-full max-w-lg ${modalBgColor} ${textColor}`}>
+                <div className={`flex justify-between items-center border-b pb-3 mb-4 ${borderColor}`}>
                     <h3 className="text-xl font-semibold">Détails du franchisé</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-100">
+                    <button onClick={onClose} className={`text-gray-400 hover:text-gray-100`}>
                         <X size={24} />
                     </button>
                 </div>
                 <div className="space-y-4">
-                    <p><strong>Nom complet:</strong> {franchisee.first_name} {franchisee.last_name}</p>
-                    <p><strong>Email:</strong> {franchisee.email}</p>
-                    <p><strong>Statut:</strong> {franchisee.is_active ? 'Actif' : 'Inactif'}</p>
+                    <ModalDetailItem icon={<Mail size={20} />} label="Email" value={franchisee.email} />
+                    <ModalDetailItem icon={<Phone size={20} />} label="Téléphone" value={franchisee.phone || 'N/A'} />
+                    <ModalDetailItem icon={<MapPin size={20} />} label="Adresse" value={`${franchisee.address || 'N/A'}, ${franchisee.zip_code || ''} ${franchisee.city || ''}`} />
+                    <ModalDetailItem icon={<Briefcase size={20} />} label="Situation Actuelle" value={franchisee.current_situation || 'N/A'} />
+                    <ModalDetailItem icon={<Globe size={20} />} label="Zone Souhaitée" value={franchisee.desired_zone || 'N/A'} />
+                    <ModalDetailItem icon={<DollarSign size={20} />} label="Apport Financier" value={franchisee.financial_contribution || 'N/A'} />
+                    <ModalDetailItem label="Statut" value={franchisee.is_active ? 'Actif' : 'Inactif'} />
                 </div>
             </div>
         </div>
     );
 };
 
-const FranchiseesView = ({ theme }) => {
+const FranchiseesView = ({ theme, onViewDetails }) => {
     const [franchisees, setFranchisees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -56,13 +83,18 @@ const FranchiseesView = ({ theme }) => {
         }
     };
 
-    const handleViewDetails = (franchisee) => {
+    // Fonction pour l'ouverture du MODAL de détails (bouton "Info")
+    const handleViewDetailsInModal = (franchisee) => {
+        console.log("handleViewDetailsInModal called with:", franchisee); // LOG 1
         setActiveFranchisee(franchisee);
         setIsModalOpen(true);
+        console.log("Modal state after setting:", { isModalOpen: true, activeFranchisee: franchisee }); // LOG 2
     };
 
     if (loading) return <div className="p-6 text-center">Chargement des franchisés...</div>;
     if (error) return <div className="p-6 text-center text-red-500">Erreur : {error}</div>;
+
+    console.log("Rendering FranchiseesView. Modal status:", { isModalOpen, activeFranchisee }); // LOG 3
 
     return (
         <div className={`p-6 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
@@ -94,14 +126,24 @@ const FranchiseesView = ({ theme }) => {
                                             onClick={() => handleToggleStatus(f.id, f.is_active)}
                                             className={`p-2 rounded-md text-white transition-colors duration-200 ${f.is_active ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
                                         >
-                                            {f.is_active ? <XCircle size={16} /> : <CheckCircle size={16} />}
+                                            <XCircle size={16} />
                                         </button>
                                         <button
-                                            onClick={() => handleViewDetails(f)}
+                                            // Ce bouton ouvre le MODAL de détails
+                                            onClick={() => handleViewDetailsInModal(f)} // Appel à la fonction de la modale
                                             className="p-2 rounded-md text-white bg-indigo-500 hover:bg-indigo-600 transition-colors duration-200"
                                         >
                                             <Info size={16} />
                                         </button>
+                                        {/* Bouton "Voir plus" qui appelle onViewDetails(f.id) uniquement si la prop est fournie */}
+                                        {onViewDetails && (
+                                            <button
+                                                onClick={() => onViewDetails(f.id)}
+                                                className="p-2 rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
+                                            >
+                                                Voir plus
+                                            </button>
+                                        )}
                                     </div>
                                 </td>
                             </tr>
@@ -116,6 +158,7 @@ const FranchiseesView = ({ theme }) => {
                     </tbody>
                 </table>
             </div>
+            {/* Le modal de détails est toujours présent pour le bouton "Info" */}
             <FranchiseeDetailsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} franchisee={activeFranchisee} theme={theme} />
         </div>
     );

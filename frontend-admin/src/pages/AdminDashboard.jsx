@@ -8,6 +8,7 @@ import NotificationsView from './NotificationsView.jsx';
 import AdminsView from './AdminsView.jsx';
 import ValidatedFranchiseesView from "./ValidatedFranchiseesView.jsx";
 import UnvalidatedFranchiseesView from "./UnvalidatedFranchiseesView.jsx";
+import FranchiseeDetails from './FranchiseeDetails.jsx'; // Importez le nouveau composant
 
 import { useUser } from '../context/UserContext.jsx';
 
@@ -17,6 +18,8 @@ function AdminDashboard() {
     const [theme, setTheme] = useState('dark');
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
+    // Nouvel état pour stocker l'ID du franchisé sélectionné pour les détails
+    const [selectedFranchiseeId, setSelectedFranchiseeId] = useState(null);
 
     if (!user) {
         return null;
@@ -30,20 +33,44 @@ function AdminDashboard() {
         setIsSidebarOpen(prev => !prev);
     };
 
+    // Nouvelle fonction pour naviguer vers les détails d'un franchisé
+    const handleViewFranchiseeDetails = (id) => {
+        setSelectedFranchiseeId(id);
+        setCurrentView('franchiseeDetails');
+    };
+
+    // Fonction pour revenir à la liste des franchisés (utilisée par FranchiseeDetails)
+    const handleBackToFranchiseesList = () => {
+        setCurrentView('franchisees'); // Ou 'pendingFranchisees', 'disabledFranchisees' selon le contexte
+        setSelectedFranchiseeId(null); // Réinitialise l'ID sélectionné
+    };
+
+
     const renderContent = () => {
         switch (currentView) {
             case 'dashboard':
                 return <DashboardView franchisees={[]} theme={theme} />;
             case 'franchisees':
-                return <FranchiseesView theme={theme} />;
+                // Passe la fonction pour voir les détails aux vues de liste de franchisés
+                return <FranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />;
             case 'notifications':
                 return <NotificationsView theme={theme} />;
             case 'admins':
                 return <AdminsView admins={[]} theme={theme} user={user} />;
             case 'pendingFranchisees':
-                return <ValidatedFranchiseesView admins={[]} theme={theme} />;
+                return <ValidatedFranchiseesView admins={[]} theme={theme} onViewDetails={handleViewFranchiseeDetails} />;
             case 'disabledFranchisees':
-                return <UnvalidatedFranchiseesView theme={theme} />;
+                return <UnvalidatedFranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />;
+            case 'franchiseeDetails':
+                // Rend le composant FranchiseeDetails en lui passant l'ID sélectionné
+                // et la fonction de retour à la liste
+                return (
+                    <FranchiseeDetails
+                        franchiseeId={selectedFranchiseeId}
+                        onBackToList={handleBackToFranchiseesList}
+                        theme={theme}
+                    />
+                );
             default:
                 return null;
         }

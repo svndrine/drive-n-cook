@@ -20,7 +20,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/franchisees', [FranchiseeController::class, 'index']);
-    Route::patch('/franchisees/{id}/status', [FranchiseeController::class, 'toggleStatus']);
+    Route::patch('/franchisees/{franchisee}/status', [FranchiseeController::class, 'toggleStatus']);
 });
 
 
@@ -34,4 +34,7 @@ Route::middleware(['auth:sanctum', 'superadmin'])->group(function () {
 Route::middleware('auth:sanctum')->get('/franchisees/unvalidated', [FranchiseeController::class, 'getUnvalidated']);
 
 Route::middleware('auth:sanctum')->get('/franchisees/validated', [FranchiseeController::class, 'getValidated']);
+
 Route::get('/franchisees/{id}', [FranchiseeController::class, 'show']);
+
+Route::middleware('auth:sanctum')->post('/franchisees/create-payment-intent', [FranchiseeController::class, 'createPaymentIntent']);

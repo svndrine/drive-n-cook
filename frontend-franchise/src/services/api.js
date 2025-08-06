@@ -86,25 +86,36 @@ export async function deleteAdmin(adminId) {
  */
 export const createFranchisee = async (formData) => {
     try {
-        const response = await fetch('http://localhost:8000/api/franchisees', {
+        const response = await fetch(`${API_URL}/franchisees`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest', // Important pour Laravel
             },
-            body: JSON.stringify(formData),
+            body: JSON.stringify(formData)
         });
 
-        // Parse la réponse JSON
-        const data = await response.json();
-
-        // Si la réponse n'est pas "ok" (statut HTTP >= 400), lance une erreur
+        // Vérifiez d'abord si la réponse est OK
         if (!response.ok) {
-            throw new Error(data.message || 'Erreur lors de la soumission du formulaire');
+            // Essayez de lire la réponse comme texte d'abord
+            const textResponse = await response.text();
+            console.error('Réponse brute du serveur:', textResponse);
+
+            // Essayez de parser en JSON si possible
+            try {
+                const errorData = JSON.parse(textResponse);
+                throw new Error(errorData.message || `Erreur HTTP: ${response.status}`);
+            } catch (parseError) {
+                // Si ce n'est pas du JSON, retournez le texte brut
+                throw new Error(`Erreur serveur: ${textResponse.substring(0, 200)}...`);
+            }
         }
 
-        return data; // Retourne la réponse en cas de succès
+        const data = await response.json();
+        return data;
     } catch (error) {
-        // Renvoie l'erreur pour qu'elle soit gérée par le composant appelant
+        console.error('Erreur dans createFranchisee:', error);
         throw error;
     }
 };
