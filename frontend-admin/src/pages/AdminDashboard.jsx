@@ -1,4 +1,3 @@
-// frontend-admin/src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import HeaderDashboard from '../components/HeaderDashboard.jsx';
 import SidebarDashboard from '../components/SidebarDashboard.jsx';
@@ -8,8 +7,8 @@ import NotificationsView from './NotificationsView.jsx';
 import AdminsView from './AdminsView.jsx';
 import ValidatedFranchiseesView from "./ValidatedFranchiseesView.jsx";
 import UnvalidatedFranchiseesView from "./UnvalidatedFranchiseesView.jsx";
-import FranchiseeDetails from './FranchiseeDetails.jsx'; // Importez le nouveau composant
-
+import FranchiseeDetails from './FranchiseeDetails.jsx';
+import { getFranchisees } from '../services/api.js';
 import { useUser } from '../context/UserContext.jsx';
 
 function AdminDashboard() {
@@ -18,52 +17,53 @@ function AdminDashboard() {
     const [theme, setTheme] = useState('dark');
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
-    // Nouvel état pour stocker l'ID du franchisé sélectionné pour les détails
     const [selectedFranchiseeId, setSelectedFranchiseeId] = useState(null);
 
-    if (!user) {
-        return null;
-    }
+    // ✅ AJOUT : état pour stocker les franchisés
+    const [franchisees, setFranchisees] = useState([]);
 
-    const toggleTheme = () => {
-        setTheme(prevTheme => (prevTheme === 'dark' ? 'light' : 'dark'));
-    };
+    useEffect(() => {
+        const fetchFranchisees = async () => {
+            try {
+                const data = await getFranchisees();
+                setFranchisees(data);
+            } catch (error) {
+                console.error('Erreur de chargement des franchisés', error);
+            }
+        };
+        fetchFranchisees();
+    }, []);
 
-    const toggleSidebar = () => {
-        setIsSidebarOpen(prev => !prev);
-    };
+    if (!user) return null;
 
-    // Nouvelle fonction pour naviguer vers les détails d'un franchisé
+    const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+    const toggleSidebar = () => setIsSidebarOpen(prev => !prev);
+
     const handleViewFranchiseeDetails = (id) => {
         setSelectedFranchiseeId(id);
         setCurrentView('franchiseeDetails');
     };
 
-    // Fonction pour revenir à la liste des franchisés (utilisée par FranchiseeDetails)
     const handleBackToFranchiseesList = () => {
-        setCurrentView('franchisees'); // Ou 'pendingFranchisees', 'disabledFranchisees' selon le contexte
-        setSelectedFranchiseeId(null); // Réinitialise l'ID sélectionné
+        setCurrentView('franchisees');
+        setSelectedFranchiseeId(null);
     };
-
 
     const renderContent = () => {
         switch (currentView) {
             case 'dashboard':
-                return <DashboardView franchisees={[]} theme={theme} />;
+                return <DashboardView theme={theme} franchisees={franchisees} />;
             case 'franchisees':
-                // Passe la fonction pour voir les détails aux vues de liste de franchisés
                 return <FranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />;
             case 'notifications':
                 return <NotificationsView theme={theme} />;
             case 'admins':
                 return <AdminsView admins={[]} theme={theme} user={user} />;
             case 'pendingFranchisees':
-                return <ValidatedFranchiseesView admins={[]} theme={theme} onViewDetails={handleViewFranchiseeDetails} />;
+                return <ValidatedFranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />;
             case 'disabledFranchisees':
                 return <UnvalidatedFranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />;
             case 'franchiseeDetails':
-                // Rend le composant FranchiseeDetails en lui passant l'ID sélectionné
-                // et la fonction de retour à la liste
                 return (
                     <FranchiseeDetails
                         franchiseeId={selectedFranchiseeId}
@@ -87,7 +87,7 @@ function AdminDashboard() {
                 theme={theme}
             />
 
-            <div className={`flex flex-col flex-1 transition-all duration-300 ease-in-out`}>
+            <div className="flex flex-col flex-1 transition-all duration-300 ease-in-out">
                 <HeaderDashboard
                     user={user}
                     theme={theme}

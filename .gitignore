@@ -19,3 +19,14 @@ docker-compose.override.yml
 
 # Mac / système
 .DS_Store
+
+/frontend-admin/.env
+/frontend-admin/node_modules
+/frontend-franchise/.env
+/frontend-franchise/node_modules
+/backend/.env
+/backend/.env.example
+# Never commit env files
+.env*
+devops/.env*
+backend/.env*

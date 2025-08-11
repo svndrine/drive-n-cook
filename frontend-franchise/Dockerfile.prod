@@ -1,0 +1,35 @@
+# Étape 1 : build
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Copier les fichiers package en premier pour le cache
+COPY package*.json ./
+
+# Installer TOUTES les dépendances (dev incluses pour le build)
+RUN npm ci --silent
+
+# Copier le reste des fichiers
+COPY . .
+
+# Builder l'application
+RUN npm run build
+
+# Étape 2 : servir avec vite preview
+FROM node:20-alpine
+WORKDIR /app
+
+# Copier les fichiers package
+COPY package*.json ./
+
+# Installer les dépendances (incluant vite pour preview)
+RUN npm ci --silent
+
+# Copier les fichiers buildés
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/vite.config.* ./
+COPY --from=builder /app/index.html ./
+
+EXPOSE 5174
+
+# Utiliser npx vite preview pour s'assurer que vite est disponible
+CMD ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "5174"]

@@ -1,46 +1,76 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Header from "./components/Header.jsx";
+// src/App.jsx
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+// Importe les deux en-têtes
+import PublicHeader from "./components/Header.jsx";
+import HeaderConnected from "./components/HeaderConnected.jsx";
 import Login from "./pages/Login.jsx";
 import DevenirFranchise from "./pages/DevenirFranchise.jsx";
-import FranchiseeDashboard from "./pages/FranchiseeDashboard.jsx";
-import PaiementFranchise from "./pages/PaiementFranchise.jsx"; // Importez la page de paiement
+import Home from "./pages/Home.jsx";
+import PaiementFranchise from "./pages/PaiementFranchise.jsx";
 import { FranchiseeProvider, useFranchisee } from './context/FranchiseeContext.jsx';
+import FranchiseeDashboard from "./pages/FranchiseeDashboard.jsx";
 
-// Composant interne pour gérer l'affichage conditionnel
 const AppContent = () => {
     const { isLoggedIn, loading } = useFranchisee();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // Pages publiques accessibles sans connexion
+    const publicRoutes = ['/login', '/devenir-franchise'];
+    const isPublicRoute = publicRoutes.includes(location.pathname);
+
+    useEffect(() => {
+        if (!loading) {
+            // Si utilisateur connecté et sur une page de connexion, rediriger vers home
+            if (isLoggedIn && location.pathname === '/login') {
+                navigate("/home", { replace: true });
+            }
+            // Si utilisateur non connecté et sur une page protégée, rediriger vers login
+            else if (!isLoggedIn && !isPublicRoute && location.pathname !== '/') {
+                navigate("/login", { replace: true });
+            }
+            // Si utilisateur non connecté sur la racine, rediriger vers login
+            else if (!isLoggedIn && location.pathname === '/') {
+                navigate("/login", { replace: true });
+            }
+        }
+    }, [isLoggedIn, loading, navigate, location.pathname, isPublicRoute]);
 
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-100 text-gray-800">
-                Chargement...
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p>Chargement...</p>
+                </div>
             </div>
         );
     }
 
     return (
         <div className="App">
-            {/* Le Header peut être ici ou à l'intérieur de certaines routes si nécessaire */}
-            <Header />
+            {/* Rendu conditionnel de l'en-tête */}
+            {isLoggedIn ? <HeaderConnected /> : <PublicHeader />}
+
             <Routes>
-                {/* Routes publiques */}
+                {/* Routes publiques - accessibles sans connexion */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/devenir-franchise" element={<DevenirFranchise />} />
 
-                {/* Route de paiement (peut être publique ou protégée selon votre logique métier) */}
-                <Route path="/franchisee/paiement" element={<PaiementFranchise />} />
-
-                {/* Route protégée : tableau de bord du franchisé */}
-                {isLoggedIn ? (
-                    <Route path="/dashboard" element={<FranchiseeDashboard />} />
-                ) : (
-                    // Rediriger vers la page de connexion si non connecté et tente d'accéder au dashboard
-                    <Route path="/dashboard" element={<Login />} />
+                {/* Routes protégées - nécessitent une connexion */}
+                {isLoggedIn && (
+                    <>
+                        <Route path="/home" element={<Home />} />
+                        <Route path="/dashbord" element={<FranchiseeDashboard />} />
+                        <Route path="/franchisee/paiement" element={<PaiementFranchise />} />
+                    </>
                 )}
 
-                {/* Route par défaut si aucune autre ne correspond */}
-                <Route path="*" element={isLoggedIn ? <FranchiseeDashboard /> : <Login />} />
+                {/* Route par défaut */}
+                <Route path="/" element={
+                    isLoggedIn ? <Home /> : <Login />
+                } />
             </Routes>
         </div>
     );
@@ -49,7 +79,7 @@ const AppContent = () => {
 function App() {
     return (
         <FranchiseeProvider>
-            <Router> {/* BrowserRouter doit envelopper les Routes */}
+            <Router>
                 <AppContent />
             </Router>
         </FranchiseeProvider>

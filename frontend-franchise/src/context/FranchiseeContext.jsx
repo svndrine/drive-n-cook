@@ -1,57 +1,80 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { login } from '../services/api.js'; // Assurez-vous d'avoir une fonction login dans votre api.js
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { login, getCurrentUser, logout } from '../services/api'; // Assurez-vous que les chemins d'importation sont corrects
 
-// Crée le contexte franchisé
 const FranchiseeContext = createContext();
 
-// Crée un hook personnalisé pour utiliser le contexte
 export const useFranchisee = () => {
     return useContext(FranchiseeContext);
 };
 
-// Le fournisseur de contexte qui gère toute la logique
 export const FranchiseeProvider = ({ children }) => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    useEffect(() => {
-        const token = localStorage.getItem('access_token_franchisee');
-        const userData = localStorage.getItem('user_data_franchisee');
-        if (token && userData) {
-            setIsLoggedIn(true);
-            setUser(JSON.parse(userData));
-        }
-        setLoading(false);
-    }, []);
-
-    const handleLogin = async (email, password) => {
-        setLoading(true);
-        setError(null);
+    // Fonction pour vérifier le statut de connexion au chargement de l'application
+    const checkLoginStatus = async () => {
         try {
-            const data = await login(email, password);
-            localStorage.setItem('access_token_franchisee', data.access_token);
-            localStorage.setItem('user_data_franchisee', JSON.stringify(data.user));
-
-            setIsLoggedIn(true);
-            setUser(data.user);
-            console.log('Connexion franchisé réussie', data.user);
+            const token = localStorage.getItem('access_token');
+            if (token) {
+                // Tente de récupérer l'utilisateur avec le token
+                const currentUser = await getCurrentUser();
+                if (currentUser) {
+                    setIsLoggedIn(true);
+                    setUser(currentUser);
+                } else {
+                    // Token invalide ou expiré
+                    handleLogout();
+                }
+            }
         } catch (err) {
-            setError(err.message || 'Impossible de se connecter. Veuillez réessayer plus tard.');
-            console.error('Erreur:', err);
+            console.error("Erreur lors de la vérification de la connexion:", err);
+            handleLogout();
         } finally {
             setLoading(false);
         }
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('access_token_franchisee');
-        localStorage.removeItem('user_data_franchisee');
-        setIsLoggedIn(false);
-        setUser(null);
-        console.log('Déconnexion franchisé réussie');
+    // Gère la connexion
+    const handleLogin = async (email, password) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await login(email, password);
+            if (data.access_token) {
+                localStorage.setItem('access_token', data.access_token);
+                // Récupère les informations de l'utilisateur après la connexion
+                const currentUser = await getCurrentUser();
+                setUser(currentUser);
+                setIsLoggedIn(true);
+            }
+        } catch (err) {
+            setError(err.message || "Erreur de connexion. Veuillez vérifier vos informations.");
+        } finally {
+            setLoading(false);
+        }
     };
+
+    // Gère la déconnexion
+    const handleLogout = async () => {
+        setLoading(true);
+        try {
+            await logout();
+        } catch (err) {
+            console.error("Erreur lors de la déconnexion:", err);
+        } finally {
+            localStorage.removeItem('access_token');
+            setIsLoggedIn(false);
+            setUser(null);
+            setLoading(false);
+        }
+    };
+
+    // Exécute la vérification au premier rendu
+    useEffect(() => {
+        checkLoginStatus();
+    }, []);
 
     const value = {
         isLoggedIn,

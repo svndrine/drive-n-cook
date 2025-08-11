@@ -15,6 +15,7 @@ use Stripe\Stripe;
 use Stripe\PaymentIntent;
 use Illuminate\Support\Facades\Log;
 use App\Mail\SetPasswordMail;
+use App\Services\PaymentService;
 
 class FranchiseeController extends Controller
 {
@@ -112,6 +113,8 @@ class FranchiseeController extends Controller
         return response()->json($transformedFranchisees);
     }
 
+    // Remplacez votre méthode toggleStatus dans FranchiseeController par celle-ci :
+
     public function toggleStatus($id, Request $request)
     {
         $user = Auth::user();
@@ -140,29 +143,54 @@ class FranchiseeController extends Controller
         $wasInactive = !$targetUser->is_active;
         $isBeingActivated = $validated['is_active'] === true;
 
-        // VALIDATION = Génération d'un nouveau mot de passe et envoi par email
-        if ($wasInactive && $isBeingActivated) {
-            try {
+        try {
+            // VALIDATION COMPLÈTE = Activation du système de paiement
+            if ($wasInactive && $isBeingActivated) {
+
+                // Utiliser le PaymentService pour créer tout le système
+                $paymentService = app(\App\Services\PaymentService::class);
+                $paymentData = $paymentService->processFranchiseeValidation($targetUser->id, $user->id);
+
                 // Générer un nouveau mot de passe aléatoire
-                $newPassword = Str::random(10);
+                $newPassword = Str::random(12);
 
                 // Mise à jour du mot de passe ET du statut
                 $targetUser->password = bcrypt($newPassword);
                 $targetUser->is_active = true;
                 $targetUser->save();
 
-                // Log avant envoi pour debug
-                Log::info("Tentative d'envoi email à: {$targetUser->email}");
-                Log::info("Mot de passe généré: {$newPassword}");
-
-                // Envoyer l'email avec le mot de passe
-                Mail::to($targetUser->email)->send(new SetPasswordMail($newPassword, $targetUser->franchisee, true));
-
-                // Log après envoi
-                Log::info("Email envoyé avec succès à: {$targetUser->email}");
+                // Envoyer l'email avec le mot de passe ET les infos de paiement
+                Mail::to($targetUser->email)->send(new SetPasswordMail(
+                    $newPassword,
+                    $targetUser->franchisee,
+                    true,
+                    $paymentData // Ajouter les données de paiement
+                ));
 
                 return response()->json([
-                    'message' => 'Franchisé validé avec succès. Mot de passe envoyé par email.',
+                    'message' => 'Franchisé validé avec succès. Contrat créé et email envoyé.',
+                    'franchisee' => [
+                        'id' => $targetUser->id,
+                        'first_name' => $targetUser->franchisee->first_name,
+                        'last_name' => $targetUser->franchisee->last_name,
+                        'email' => $targetUser->email,
+                        'is_active' => $targetUser->is_active
+                    ],
+                    'payment_data' => [
+                        'contract_number' => $paymentData['contract']->contract_number,
+                        'franchise_fee_amount' => $paymentData['franchise_fee_transaction']->amount,
+                        'payment_url' => $paymentData['payment_url'],
+                        'due_date' => $paymentData['franchise_fee_transaction']->due_date
+                    ]
+                ]);
+
+            } else {
+                // Simple changement de statut sans création du système de paiement
+                $targetUser->is_active = $validated['is_active'];
+                $targetUser->save();
+
+                return response()->json([
+                    'message' => 'Statut du franchisé mis à jour.',
                     'franchisee' => [
                         'id' => $targetUser->id,
                         'first_name' => $targetUser->franchisee->first_name,
@@ -171,37 +199,20 @@ class FranchiseeController extends Controller
                         'is_active' => $targetUser->is_active
                     ]
                 ]);
-
-            } catch (\Exception $e) {
-                // Log l'erreur complète
-                Log::error('Erreur validation franchisé: ' . $e->getMessage());
-                Log::error('Stack trace: ' . $e->getTraceAsString());
-
-                return response()->json([
-                    'message' => 'Erreur lors de l\'envoi de l\'email de validation.',
-                    'error' => $e->getMessage(),
-                    'file' => basename($e->getFile()),
-                    'line' => $e->getLine()
-                ], 500);
             }
-        } else {
-            // Simple changement de statut sans email
-            $targetUser->is_active = $validated['is_active'];
-            $targetUser->save();
-        }
 
-        // Retourne les données mises à jour
-        return response()->json([
-            'message' => 'Statut du franchisé mis à jour.',
-            'franchisee' => [
-                'id' => $targetUser->id,
-                'first_name' => $targetUser->franchisee->first_name,
-                'last_name' => $targetUser->franchisee->last_name,
-                'email' => $targetUser->email,
-                'is_active' => $targetUser->is_active
-            ]
-        ]);
+        } catch (\Exception $e) {
+            // Log l'erreur
+            Log::error('Erreur validation franchisé: ' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Erreur lors de la validation du franchisé.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
+
+
 
     // NOUVELLE MÉTHODE : Valider un franchisé
     public function validate($id)
@@ -407,33 +418,5 @@ class FranchiseeController extends Controller
         ]);
     }
 
-    public function createPaymentIntent(Request $request)
-    {
-        $user = $request->user();
 
-        if ($user->role !== 'franchisee' || !$user->is_active) {
-            return response()->json(['message' => 'Accès refusé'], 403);
-        }
-
-        $franchisee = $user->franchisee;
-
-        if ($franchisee->has_paid) {
-            return response()->json(['message' => 'Déjà payé'], 400);
-        }
-
-        Stripe::setApiKey(env('STRIPE_SECRET'));
-
-        $intent = PaymentIntent::create([
-            'amount' => 5000000, // en centimes => 50 000 €
-            'currency' => 'eur',
-            'metadata' => [
-                'user_id' => $user->id,
-                'franchisee_id' => $franchisee->id
-            ],
-        ]);
-
-        return response()->json([
-            'clientSecret' => $intent->client_secret,
-        ]);
-    }
 }

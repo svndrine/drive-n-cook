@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useUser } from '../context/UserContext.jsx';
 import { login } from '../services/api.js'; // Import de la fonction d'API
+import { useNavigate } from 'react-router-dom';
 
 function Login() {
     // Utilisation du hook useUser pour accéder au contexte
@@ -8,18 +9,22 @@ function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [apiError, setApiError] = useState(null);
+    const navigate = useNavigate();
+
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            // Appel de la fonction d'API pour la connexion
             const data = await login(email, password);
-            // Une fois l'API réussie, on appelle la fonction handleLogin du contexte
             handleLogin(data.user, data.access_token);
+
+            // ✅ Redirection explicite ici
+            navigate('/admin/dashboard');
         } catch (err) {
             setApiError(err.message);
         }
     };
+
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100">

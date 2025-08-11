@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Middleware aliases
         $middleware->alias([
             'superadmin' => \App\Http\Middleware\IsSuperadmin::class,
+            'admin' => \App\Http\Middleware\IsAdmin::class, // AJOUT DU NOUVEAU MIDDLEWARE
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

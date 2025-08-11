@@ -1,14 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFranchisee } from './../context/FranchiseeContext.jsx';
+import { useNavigate } from 'react-router-dom';
 
 function Login() {
     // Utilisation du hook useFranchisee pour accéder au contexte
-    const { handleLogin, error, loading } = useFranchisee();
+    const { handleLogin, error, loading, isLoggedIn } = useFranchisee();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const navigate = useNavigate();
+
+    // Redirection si l'utilisateur est déjà connecté
+    useEffect(() => {
+        if (isLoggedIn) {
+            navigate('/home');
+        }
+    }, [isLoggedIn, navigate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        // Le handleLogin est maintenant géré par le contexte, il gère lui-même la redirection après le succès
         handleLogin(email, password);
     };
 
