@@ -2,10 +2,11 @@
 
 namespace App\Models;
 
+use App\Models\AccountMovement;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class FranchiseeAccount extends Model
 {
@@ -119,48 +120,45 @@ class FranchiseeAccount extends Model
     /**
      * Débiter le compte
      */
-    public function debit(float $amount, string $description, ?Transaction $transaction = null): AccountMovement
+    public function debit(float $amount, string $description, $transaction = null, string $category = 'payment'): AccountMovement
     {
         $balanceBefore = $this->current_balance;
-        $newBalance = $balanceBefore - $amount;
+        $this->current_balance -= $amount;
+        $this->save();
 
-        $this->update([
-            'current_balance' => $newBalance,
-            'total_spent' => $this->total_spent + $amount,
-            'last_transaction_at' => now()
+        return AccountMovement::create([
+            'user_id' => $this->user_id,
+            'transaction_id' => $transaction ? $transaction->id : null,
+            'movement_type' => AccountMovement::TYPE_DEBIT,
+            'amount' => $amount,
+            'description' => $description,
+            'balance_before' => $balanceBefore,
+            'balance_after' => $this->current_balance,
+            'category' => $category,
+            'created_by' => auth()->id() // ou 1 pour système
         ]);
-
-        return $this->recordMovement(
-            'debit',
-            $amount,
-            $balanceBefore,
-            $newBalance,
-            $description,
-            $transaction
-        );
     }
 
     /**
      * Créditer le compte
      */
-    public function credit(float $amount, string $description, ?Transaction $transaction = null): AccountMovement
+    public function credit(float $amount, string $description, $transaction = null, string $category = 'payment'): AccountMovement
     {
         $balanceBefore = $this->current_balance;
-        $newBalance = $balanceBefore + $amount;
+        $this->current_balance += $amount;
+        $this->save();
 
-        $this->update([
-            'current_balance' => $newBalance,
-            'last_transaction_at' => now()
+        return AccountMovement::create([
+            'user_id' => $this->user_id,
+            'transaction_id' => $transaction ? $transaction->id : null,
+            'movement_type' => AccountMovement::TYPE_CREDIT,
+            'amount' => $amount,
+            'description' => $description,
+            'balance_before' => $balanceBefore,
+            'balance_after' => $this->current_balance,
+            'category' => $category,
+            'created_by' => auth()->id() // ou 1 pour système
         ]);
-
-        return $this->recordMovement(
-            'credit',
-            $amount,
-            $balanceBefore,
-            $newBalance,
-            $description,
-            $transaction
-        );
     }
 
     /**

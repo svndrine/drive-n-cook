@@ -224,6 +224,8 @@ export async function getFranchisees() {
  * @returns {Promise<object>} Les données de réponse de l'API.
  */
 export async function validateFranchisee(id) {
+    console.log('validateFranchisee appelée avec id:', id);
+    console.log('Calling toggleFranchiseeStatus with:', id, true);
     return await toggleFranchiseeStatus(id, true);
 }
 
@@ -269,7 +271,11 @@ export async function toggleFranchiseeStatus(id, is_active) {
         throw new Error("Aucun token d'accès trouvé.");
     }
 
-    // Correction de l'URL - ajout du / manquant
+    console.log('toggleFranchiseeStatus appelée');
+    console.log('URL:', `${API_URL}/franchisees/${id}/status`);
+    console.log('Méthode:', 'PATCH');
+    console.log('Body:', JSON.stringify({ is_active }));
+
     const response = await fetch(`${API_URL}/franchisees/${id}/status`, {
         method: "PATCH",
         headers: {
@@ -279,6 +285,9 @@ export async function toggleFranchiseeStatus(id, is_active) {
         },
         body: JSON.stringify({ is_active })
     });
+
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers);
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ message: response.statusText }));
@@ -800,4 +809,390 @@ export function getTransactionStatusLabel(status) {
     };
 
     return labels[status] || 'Inconnu';
+}
+
+// =====================================
+// NOUVELLES FONCTIONS POUR LA GESTION DES ENTREPÔTS ET PRODUITS
+// À ajouter à la fin de votre frontend-admin/src/services/api.js
+// =====================================
+
+// =====================================
+// FONCTIONS POUR LES ENTREPÔTS
+// =====================================
+
+/**
+ * Obtenir la liste des entrepôts
+ * @param {object} filters - Filtres optionnels (active, search, with_stats)
+ * @returns {Promise<object>} Liste des entrepôts
+ */
+export async function getWarehouses(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value);
+        }
+    });
+
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/warehouses${queryString ? '?' + queryString : ''}`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des entrepôts`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Obtenir les détails d'un entrepôt
+ * @param {number} id - ID de l'entrepôt
+ * @param {object} options - Options (with_stocks, with_orders)
+ * @returns {Promise<object>} Détails de l'entrepôt
+ */
+export async function getWarehouse(id, options = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams(options);
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/warehouses/${id}${queryString ? '?' + queryString : ''}`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération de l'entrepôt`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Créer un nouvel entrepôt (admin uniquement)
+ * @param {object} warehouseData - Données de l'entrepôt
+ * @returns {Promise<object>} Entrepôt créé
+ */
+export async function createWarehouse(warehouseData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/warehouses`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(warehouseData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la création de l'entrepôt`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Mettre à jour un entrepôt (admin uniquement)
+ * @param {number} id - ID de l'entrepôt
+ * @param {object} warehouseData - Nouvelles données
+ * @returns {Promise<object>} Entrepôt mis à jour
+ */
+export async function updateWarehouse(id, warehouseData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/warehouses/${id}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(warehouseData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la mise à jour de l'entrepôt`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Supprimer un entrepôt (admin uniquement)
+ * @param {number} id - ID de l'entrepôt
+ * @returns {Promise<object>} Confirmation de suppression
+ */
+export async function deleteWarehouse(id) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/warehouses/${id}`, {
+        method: "DELETE",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la suppression de l'entrepôt`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Obtenir les stocks d'un entrepôt
+ * @param {number} warehouseId - ID de l'entrepôt
+ * @param {object} filters - Filtres optionnels
+ * @returns {Promise<object>} Stocks de l'entrepôt
+ */
+export async function getWarehouseStocks(warehouseId, filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams(filters);
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/stock/overview${queryString ? '?' + queryString : ''}`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération de l'aperçu des stocks`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Obtenir les alertes de stock globales
+ * @param {object} filters - Filtres optionnels (warehouse_id)
+ * @returns {Promise<object>} Alertes de stock
+ */
+export async function getStockAlerts(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams(filters);
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/stock/alerts${queryString ? '?' + queryString : ''}`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des alertes`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Effectuer un ajustement de stock (admin uniquement)
+ * @param {object} adjustmentData - {warehouse_id, product_id, new_quantity, reason}
+ * @returns {Promise<object>} Résultat de l'ajustement
+ */
+export async function adjustStock(adjustmentData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/stock/adjustment`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(adjustmentData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de l'ajustement de stock`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Entrée de stock (réapprovisionnement) (admin uniquement)
+ * @param {object} stockData - {warehouse_id, product_id, quantity, reason, reference}
+ * @returns {Promise<object>} Résultat de l'entrée
+ */
+export async function stockIn(stockData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/stock/stock-in`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(stockData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de l'entrée de stock`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Sortie de stock manuelle (admin uniquement)
+ * @param {object} stockData - {warehouse_id, product_id, quantity, reason}
+ * @returns {Promise<object>} Résultat de la sortie
+ */
+export async function stockOut(stockData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/stock/stock-out`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(stockData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la sortie de stock`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Transfert de stock entre entrepôts (admin uniquement)
+ * @param {object} transferData - {from_warehouse_id, to_warehouse_id, product_id, quantity, reason}
+ * @returns {Promise<object>} Résultat du transfert
+ */
+export async function transferStock(transferData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/stock/transfer`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(transferData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors du transfert de stock`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Obtenir la valorisation des stocks
+ * @param {object} filters - Filtres optionnels (warehouse_id)
+ * @returns {Promise<object>} Valorisation des stocks
+ */
+export async function getStockValuation(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams(filters);
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/stock/valuation${queryString ? '?' + queryString : ''}`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération de la valorisation`);
+    }
+
+    return await response.json();
 }

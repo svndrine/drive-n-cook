@@ -10,6 +10,13 @@ import Home from "./pages/Home.jsx";
 import PaiementFranchise from "./pages/PaiementFranchise.jsx";
 import { FranchiseeProvider, useFranchisee } from './context/FranchiseeContext.jsx';
 import FranchiseeDashboard from "./pages/FranchiseeDashboard.jsx";
+import ContratPublic from "./pages/public/ContratPublic.jsx";
+import EntryFeePublic from "./pages/public/EntryFeePublic.jsx";
+import PaiementSuccess from "./pages/PaiementSuccess.jsx";
+import PaiementNouveau from "./pages/PaiementNouveau.jsx";
+import PaiementFailed from "./pages/PaiementFailed.jsx";
+import MonContrat from "./pages/MonContrat.jsx";
+
 
 const AppContent = () => {
     const { isLoggedIn, loading } = useFranchisee();
@@ -57,6 +64,11 @@ const AppContent = () => {
                 {/* Routes publiques - accessibles sans connexion */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/devenir-franchise" element={<DevenirFranchise />} />
+                <Route path="/paiements/success" element={<PaiementSuccess />} />
+                <Route path="/paiements/failed" element={<PaiementFailed />} />
+                <Route path="/public/contrat/:token" element={<ContratPublic />} />
+                <Route path="/public/paiement/entry-fee/:token" element={<EntryFeePublic />} />
+
 
                 {/* Routes protégées - nécessitent une connexion */}
                 {isLoggedIn && (
@@ -64,6 +76,8 @@ const AppContent = () => {
                         <Route path="/home" element={<Home />} />
                         <Route path="/dashbord" element={<FranchiseeDashboard />} />
                         <Route path="/franchisee/paiement" element={<PaiementFranchise />} />
+                        <Route path="/mon-contrat" element={<MonContrat />} />
+                        <Route path="/paiements/nouveau" element={<PaiementNouveau />} />
                     </>
                 )}
 

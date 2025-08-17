@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
 import HeaderDashboard from '../components/HeaderDashboard.jsx';
 import SidebarDashboard from '../components/SidebarDashboard.jsx';
 import DashboardView from './DashboardView.jsx';
@@ -11,16 +12,42 @@ import FranchiseeDetails from './FranchiseeDetails.jsx';
 import { getFranchisees } from '../services/api.js';
 import { useUser } from '../context/UserContext.jsx';
 
+// Composant wrapper pour FranchiseeDetails avec paramètres
+function FranchiseeDetailsWrapper({ theme, onBackToList }) {
+    const { id } = useParams();
+    return (
+        <FranchiseeDetails
+            franchiseeId={id}
+            onBackToList={onBackToList}
+            theme={theme}
+        />
+    );
+}
+
 function AdminDashboard() {
     const { user, handleLogout } = useUser();
-    const [currentView, setCurrentView] = useState('dashboard');
+    const location = useLocation();
+    const navigate = useNavigate();
+
     const [theme, setTheme] = useState('dark');
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
-    const [selectedFranchiseeId, setSelectedFranchiseeId] = useState(null);
-
-    // ✅ AJOUT : état pour stocker les franchisés
     const [franchisees, setFranchisees] = useState([]);
+
+    // Déterminer la vue actuelle basée sur l'URL
+    const getCurrentView = () => {
+        const path = location.pathname;
+        if (path.includes('/dashboard')) return 'dashboard';
+        if (path.includes('/franchisees/details/')) return 'franchiseeDetails';
+        if (path.includes('/franchisees/validated')) return 'pendingFranchisees';
+        if (path.includes('/franchisees/unvalidated')) return 'disabledFranchisees';
+        if (path.includes('/franchisees')) return 'franchisees';
+        if (path.includes('/notifications')) return 'notifications';
+        if (path.includes('/admins')) return 'admins';
+        return 'dashboard';
+    };
+
+    const currentView = getCurrentView();
 
     useEffect(() => {
         const fetchFranchisees = async () => {
@@ -34,45 +61,39 @@ function AdminDashboard() {
         fetchFranchisees();
     }, []);
 
+    // Rediriger si pas connecté
+    useEffect(() => {
+        if (!user) {
+            navigate('/login');
+        }
+    }, [user, navigate]);
+
     if (!user) return null;
 
     const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
     const toggleSidebar = () => setIsSidebarOpen(prev => !prev);
 
     const handleViewFranchiseeDetails = (id) => {
-        setSelectedFranchiseeId(id);
-        setCurrentView('franchiseeDetails');
+        navigate(`/admin/franchisees/details/${id}`);
     };
 
     const handleBackToFranchiseesList = () => {
-        setCurrentView('franchisees');
-        setSelectedFranchiseeId(null);
+        navigate('/admin/franchisees');
     };
 
-    const renderContent = () => {
-        switch (currentView) {
-            case 'dashboard':
-                return <DashboardView theme={theme} franchisees={franchisees} />;
-            case 'franchisees':
-                return <FranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />;
-            case 'notifications':
-                return <NotificationsView theme={theme} />;
-            case 'admins':
-                return <AdminsView admins={[]} theme={theme} user={user} />;
-            case 'pendingFranchisees':
-                return <ValidatedFranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />;
-            case 'disabledFranchisees':
-                return <UnvalidatedFranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />;
-            case 'franchiseeDetails':
-                return (
-                    <FranchiseeDetails
-                        franchiseeId={selectedFranchiseeId}
-                        onBackToList={handleBackToFranchiseesList}
-                        theme={theme}
-                    />
-                );
-            default:
-                return null;
+    // Fonction pour naviguer vers une vue spécifique
+    const setCurrentView = (view) => {
+        const routes = {
+            'dashboard': '/admin/dashboard',
+            'franchisees': '/admin/franchisees',
+            'notifications': '/admin/notifications',
+            'admins': '/admin/admins',
+            'pendingFranchisees': '/admin/franchisees/validated',
+            'disabledFranchisees': '/admin/franchisees/unvalidated'
+        };
+
+        if (routes[view]) {
+            navigate(routes[view]);
         }
     };
 
@@ -99,7 +120,41 @@ function AdminDashboard() {
                     toggleSidebar={toggleSidebar}
                 />
                 <main className="flex-1 overflow-y-auto">
-                    {renderContent()}
+                    <Routes>
+                        {/* Route par défaut qui redirige vers dashboard */}
+                        <Route index element={<DashboardView theme={theme} franchisees={franchisees} />} />
+
+                        <Route path="dashboard" element={
+                            <DashboardView theme={theme} franchisees={franchisees} />
+                        } />
+
+                        <Route path="franchisees" element={
+                            <FranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />
+                        } />
+
+                        <Route path="franchisees/validated" element={
+                            <ValidatedFranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />
+                        } />
+
+                        <Route path="franchisees/unvalidated" element={
+                            <UnvalidatedFranchiseesView theme={theme} onViewDetails={handleViewFranchiseeDetails} />
+                        } />
+
+                        <Route path="franchisees/details/:id" element={
+                            <FranchiseeDetailsWrapper
+                                theme={theme}
+                                onBackToList={handleBackToFranchiseesList}
+                            />
+                        } />
+
+                        <Route path="notifications" element={
+                            <NotificationsView theme={theme} />
+                        } />
+
+                        <Route path="admins" element={
+                            <AdminsView admins={[]} theme={theme} user={user} />
+                        } />
+                    </Routes>
                 </main>
             </div>
         </div>

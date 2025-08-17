@@ -1,150 +1,100 @@
-// frontend-franchise/src/components/PaymentForm.jsx
-import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
-// Définissez l'URL de votre API backend ici.
-// Idéalement, cette URL devrait être configurée via une variable d'environnement (ex: process.env.REACT_APP_API_URL)
-const API_URL = "http://localhost:8000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-export default function PaymentForm() {
+export default function PaymentForm({ type = "entry_fee", contractId, scheduleId, amount }) {
     const stripe = useStripe();
     const elements = useElements();
     const navigate = useNavigate();
 
     const [clientSecret, setClientSecret] = useState("");
-    const [loading, setLoading] = useState(true); // État pour le chargement initial du PaymentIntent
-    const [processing, setProcessing] = useState(false); // État pour le traitement du paiement
-    const [paymentMessage, setPaymentMessage] = useState(null); // Message de succès/erreur du paiement
-    const [isError, setIsError] = useState(false); // Indique si le message est une erreur
+    const [loading, setLoading] = useState(true);
+    const [processing, setProcessing] = useState(false);
+    const [paymentMessage, setPaymentMessage] = useState(null);
+    const [isError, setIsError] = useState(false);
 
-    // Effet pour récupérer le clientSecret au chargement du composant
     useEffect(() => {
-        const fetchPaymentIntent = async () => {
+        const createIntent = async () => {
             setLoading(true);
             setPaymentMessage(null);
             setIsError(false);
             try {
                 const token = localStorage.getItem("access_token");
-                if (!token) {
-                    // Si pas de token, rediriger vers la page de connexion ou afficher une erreur
-                    throw new Error("Aucun token d'accès trouvé. Veuillez vous connecter.");
-                }
-
-                const response = await fetch(`${API_URL}/franchisees/create-payment-intent`, {
+                if (!token) throw new Error("Aucun token. Veuillez vous connecter.");
+                const res = await fetch(`${API_URL}/payments/create-payment-intent`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json",
-                    },
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ type, contract_id: contractId ?? null, schedule_id: scheduleId ?? null, amount: amount ?? null }),
                 });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    // Si la réponse n'est pas OK, c'est une erreur du backend
-                    throw new Error(data.message || "Échec de la création de l'intention de paiement.");
-                }
-
-                if (data.clientSecret) {
-                    setClientSecret(data.clientSecret);
-                } else {
-                    throw new Error("Le secret client n'a pas été reçu du serveur.");
-                }
-            } catch (error) {
-                console.error("Erreur lors de la récupération de l'intention de paiement :", error);
-                setPaymentMessage(error.message || "Erreur lors de la préparation du paiement. Veuillez réessayer.");
+                const data = await res.json();
+                if (!res.ok || !data.clientSecret) throw new Error(data.message || "Échec de création de l'intention de paiement.");
+                setClientSecret(data.clientSecret);
+            } catch (e) {
+                setPaymentMessage(e.message);
                 setIsError(true);
             } finally {
-                setLoading(false); // Fin du chargement initial
+                setLoading(false);
             }
         };
+        createIntent();
+    }, [type, contractId, scheduleId, amount]);
 
-        fetchPaymentIntent();
-    }, []); // Le tableau vide assure que cet effet ne s'exécute qu'une seule fois au montage
-
-    // Gère la soumission du formulaire de paiement
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setProcessing(true); // Active l'état de traitement
-        setPaymentMessage(null); // Réinitialise les messages
+        setProcessing(true);
+        setPaymentMessage(null);
         setIsError(false);
 
-        if (!stripe || !elements || !clientSecret) {
-            setPaymentMessage("Stripe n'est pas encore chargé ou le secret client est manquant.");
+        try {
+            if (!stripe || !elements || !clientSecret) throw new Error("Stripe non prêt ou secret manquant.");
+            const cardElement = elements.getElement(CardElement);
+            const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+                payment_method: { card: cardElement },
+                return_url: `${window.location.origin}/paiements/success`,
+            });
+            if (error) throw new Error(error.message || "Erreur lors du paiement.");
+            if (paymentIntent?.status === "succeeded") {
+                setPaymentMessage("Paiement réussi !");
+                setTimeout(() => navigate("/paiements/success"), 1200);
+            } else {
+                setPaymentMessage(`Statut du paiement : ${paymentIntent?.status}`);
+                setIsError(true);
+            }
+        } catch (e) {
+            setPaymentMessage(e.message);
             setIsError(true);
+        } finally {
             setProcessing(false);
-            return;
         }
-
-        const cardElement = elements.getElement(CardElement);
-
-        // Confirme le paiement avec Stripe
-        const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-            payment_method: {
-                card: cardElement,
-            },
-        });
-
-        if (error) {
-            console.error("Erreur Stripe lors de la confirmation du paiement :", error);
-            setPaymentMessage(error.message || "Une erreur est survenue lors du paiement.");
-            setIsError(true);
-        } else if (paymentIntent.status === "succeeded") {
-            setPaymentMessage("Paiement réussi ! Redirection vers le tableau de bord...");
-            setIsError(false);
-            // Optionnel : Vous pourriez vouloir faire un appel API supplémentaire ici
-            // pour confirmer le paiement avec votre backend si votre backend ne gère pas
-            // automatiquement les webhooks Stripe.
-            setTimeout(() => navigate("/dashboard"), 2000); // Redirige après 2 secondes
-        } else {
-            // Gère les autres statuts de paiement (ex: requires_action, requires_confirmation)
-            setPaymentMessage(`Statut du paiement : ${paymentIntent.status}. Veuillez réessayer.`);
-            setIsError(true);
-        }
-        setProcessing(false); // Désactive l'état de traitement
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8 p-10 bg-white rounded-xl shadow-lg">
-                <div>
-                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                        Effectuer le paiement
-                    </h2>
-                    <p className="mt-2 text-center text-sm text-gray-600">
-                        Veuillez entrer vos informations de carte pour payer les 50 000 €.
-                    </p>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
+            <div className="max-w-md w-full space-y-6 p-8 bg-white rounded-2xl shadow">
+                <div className="space-y-1 text-center">
+                    <h2 className="text-2xl font-bold">Paiement</h2>
+                    <p className="text-sm text-gray-500">Type : {type}{contractId ? ` • Contrat #${contractId}` : ""}{scheduleId ? ` • Échéance ${scheduleId}` : ""}</p>
                 </div>
 
-                {/* Affichage des messages de chargement ou de paiement */}
                 {loading ? (
-                    <div className="text-center text-gray-600">Chargement du formulaire de paiement...</div>
-                ) : paymentMessage && (
-                    <div className={`p-3 rounded-md text-sm font-medium text-center ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    <div className="text-center text-gray-600">Préparation du paiement…</div>
+                ) : paymentMessage ? (
+                    <div className={`p-3 rounded-md text-sm text-center ${isError ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
                         {paymentMessage}
                     </div>
-                )}
+                ) : null}
 
-                <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-                    <div className="rounded-md shadow-sm -space-y-px">
-                        <div className="p-3 border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500">
-                            <label htmlFor="card-element" className="sr-only">Informations de carte</label>
-                            <CardElement id="card-element" className="py-2" />
-                        </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="p-3 border rounded-lg">
+                        <CardElement id="card-element" className="py-2" />
                     </div>
-
-                    <div>
-                        <button
-                            type="submit"
-                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
-                            // Désactive le bouton si Stripe n'est pas chargé, si le paiement est en cours,
-                            // si le clientSecret n'est pas prêt, ou s'il y a une erreur bloquante.
-                            disabled={!stripe || processing || loading || isError || !clientSecret}
-                        >
-                            {processing ? "Traitement..." : "Payer les 50 000 €"}
-                        </button>
-                    </div>
+                    <button
+                        type="submit"
+                        className="w-full py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+                        disabled={!stripe || processing || loading || !clientSecret}
+                    >{processing ? "Traitement…" : "Payer"}</button>
                 </form>
             </div>
         </div>

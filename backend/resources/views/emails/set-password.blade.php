@@ -94,6 +94,30 @@
 
         @if($isValidation)
         <p>Prochaines étapes :</p>
+
+        <p style="margin:24px 0 8px 0;">1) Lire et accepter votre contrat :</p>
+        @if($contract_view_url)
+        <a href="{{ $contract_view_url }}" style="display:inline-block;padding:12px 16px;border-radius:8px;background:#111;color:#fff;text-decoration:none;font-weight:600">
+            Ouvrir le contrat
+        </a>
+        @else
+        <p style="color:#999;font-style:italic;">Lien du contrat en cours de génération...</p>
+        @endif
+
+        <p style="margin:24px 0 8px 0;">2) Payer le droit d'entrée (50 000 €) :</p>
+        @if($entry_fee_url)
+        <a href="{{ $entry_fee_url }}" style="display:inline-block;padding:12px 16px;border-radius:8px;background:#16a34a;color:#fff;text-decoration:none;font-weight:600">
+            Payer maintenant
+        </a>
+        @else
+        <p style="color:#999;font-style:italic;">Lien de paiement en cours de génération...</p>
+        @endif
+
+        <p style="margin-top:24px;font-size:13px;color:#6b7280">
+            Vos accès seront activés automatiquement après le paiement.
+        </p>
+        @else
+        <p>Prochaines étapes :</p>
         <ol>
             <li>Connectez-vous à votre espace franchisé</li>
             <li>Modifiez votre mot de passe</li>
@@ -110,6 +134,18 @@
 
     <div class="footer">
         <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
+    </div>
+    <!-- DEBUG TEMPORAIRE -->
+    <div style="background:#f0f0f0;padding:10px;margin:10px 0;font-size:12px;">
+        <strong>Debug:</strong><br>
+        isValidation: {{ $isValidation ? 'true' : 'false' }}<br>
+        paymentData exists: {{ isset($paymentData) ? 'OUI' : 'NON' }}<br>
+        @if(isset($paymentData))
+        public_links exists: {{ isset($paymentData['public_links']) ? 'OUI' : 'NON' }}<br>
+        @if(isset($paymentData['public_links']))
+        contract_url: {{ isset($paymentData['public_links']['contract_view_url']) ? 'OUI' : 'NON' }}<br>
+        @endif
+        @endif
     </div>
 </div>
 </body>

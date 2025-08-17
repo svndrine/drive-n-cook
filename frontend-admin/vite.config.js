@@ -12,6 +12,7 @@ export default defineConfig({
     watch: {
       usePolling: true,
     },
+    historyApiFallback: true,
   },
 
   // Configuration pour la production (vite preview)

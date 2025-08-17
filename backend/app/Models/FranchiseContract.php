@@ -20,6 +20,7 @@ class FranchiseContract extends Model
         'end_date',
         'status',
         'contract_pdf_path',
+        'pdf_url',
         'signature_data',
         'truck_model',
         'truck_registration',

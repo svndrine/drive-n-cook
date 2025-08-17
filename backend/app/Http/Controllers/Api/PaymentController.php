@@ -436,4 +436,65 @@ class PaymentController extends Controller
             ], 500);
         }
     }
+
+
+    /**
+     * Obtenir les factures d'achat de stocks du franchisé
+     */
+    public function getStockPurchases(Request $request)
+    {
+        $transactions = Transaction::where('user_id', auth()->id())
+            ->where('transaction_type', 'stock_purchase')
+            ->with(['paymentType'])
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->get('per_page', 20));
+
+        return response()->json([
+            'success' => true,
+            'data' => $transactions
+        ]);
+    }
+
+    /**
+     * Payer une facture de stock via Stripe
+     */
+    public function payStockInvoice($transactionId)
+    {
+        $transaction = Transaction::where('id', $transactionId)
+            ->where('user_id', auth()->id())
+            ->where('transaction_type', 'stock_purchase')
+            ->where('status', 'pending')
+            ->firstOrFail();
+
+        try {
+            // Créer l'intention de paiement Stripe
+            $paymentIntent = \Stripe\PaymentIntent::create([
+                'amount' => $transaction->amount * 100, // en centimes
+                'currency' => 'eur',
+                'description' => $transaction->description,
+                'metadata' => [
+                    'transaction_id' => $transaction->id,
+                    'type' => 'stock_purchase'
+                ]
+            ]);
+
+            // Mettre à jour la transaction avec l'ID Stripe
+            $transaction->update([
+                'stripe_payment_intent_id' => $paymentIntent->id,
+                'status' => 'processing'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'client_secret' => $paymentIntent->client_secret,
+                'transaction' => $transaction
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création du paiement: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -16,6 +16,9 @@ use Stripe\PaymentIntent;
 use Illuminate\Support\Facades\Log;
 use App\Mail\SetPasswordMail;
 use App\Services\PaymentService;
+use App\Services\SignedLinkService;
+use App\Models\AccountMovement;
+
 
 class FranchiseeController extends Controller
 {
@@ -113,7 +116,6 @@ class FranchiseeController extends Controller
         return response()->json($transformedFranchisees);
     }
 
-    // Remplacez votre méthode toggleStatus dans FranchiseeController par celle-ci :
 
     public function toggleStatus($id, Request $request)
     {
@@ -143,11 +145,37 @@ class FranchiseeController extends Controller
         $wasInactive = !$targetUser->is_active;
         $isBeingActivated = $validated['is_active'] === true;
 
+        // Dans FranchiseeController.php, dans la méthode toggleStatus, ajoutez cette vérification :
+
         try {
             // VALIDATION COMPLÈTE = Activation du système de paiement
             if ($wasInactive && $isBeingActivated) {
+                \Log::info('Début processus validation complète');
 
-                // Utiliser le PaymentService pour créer tout le système
+                // VÉRIFICATION : le franchisé a-t-il déjà un contrat ?
+                $existingContract = \App\Models\FranchiseContract::where('user_id', $targetUser->id)->first();
+
+                if ($existingContract) {
+                    // Le franchisé a déjà été validé, on fait juste le changement de statut
+                    \Log::info("Franchisé {$targetUser->id} a déjà un contrat, simple réactivation");
+
+                    $targetUser->is_active = true;
+                    $targetUser->save();
+
+                    return response()->json([
+                        'message' => 'Franchisé réactivé avec succès (contrat existant).',
+                        'franchisee' => [
+                            'id' => $targetUser->id,
+                            'first_name' => $targetUser->franchisee->first_name,
+                            'last_name' => $targetUser->franchisee->last_name,
+                            'email' => $targetUser->email,
+                            'is_active' => $targetUser->is_active
+                        ],
+                        'existing_contract' => $existingContract->contract_number
+                    ]);
+                }
+
+                // Sinon, procédure normale de validation
                 $paymentService = app(\App\Services\PaymentService::class);
                 $paymentData = $paymentService->processFranchiseeValidation($targetUser->id, $user->id);
 
@@ -159,13 +187,33 @@ class FranchiseeController extends Controller
                 $targetUser->is_active = true;
                 $targetUser->save();
 
+                // === AJOUT : générer des liens publics signés (contrat + paiement) ===
+                $viewLink   = SignedLinkService::create($targetUser->id, 'contract_view');
+                $acceptLink = SignedLinkService::create($targetUser->id, 'contract_accept');
+                $entryLink  = SignedLinkService::create($targetUser->id, 'entry_fee_payment');
+
+                // URLs vers le frontend franchisé selon l'environnement
+                $frontendBaseUrl = env('FRONTEND_FRANCHISE_URL', 'http://localhost:5174');
+
+                $paymentData['public_links'] = [
+                    'contract_view_url'   => $frontendBaseUrl . '/public/contrat/' . $viewLink->token,
+                    'contract_accept_url' => $frontendBaseUrl . '/public/contrat/' . $acceptLink->token,
+                    'entry_fee_url'       => $frontendBaseUrl . '/public/paiement/entry-fee/' . $entryLink->token,
+                ];
+
                 // Envoyer l'email avec le mot de passe ET les infos de paiement
                 Mail::to($targetUser->email)->send(new SetPasswordMail(
                     $newPassword,
                     $targetUser->franchisee,
                     true,
-                    $paymentData // Ajouter les données de paiement
+                    $paymentData // <- Assurez-vous que cette variable contient bien public_links
                 ));
+
+                // Pour débugger, ajoutez temporairement avant l'envoi de l'email :
+                \Log::info('PaymentData avant envoi email', [
+                    'payment_data' => $paymentData,
+                    'public_links' => $paymentData['public_links'] ?? 'NON DÉFINI'
+                ]);
 
                 return response()->json([
                     'message' => 'Franchisé validé avec succès. Contrat créé et email envoyé.',
@@ -177,10 +225,11 @@ class FranchiseeController extends Controller
                         'is_active' => $targetUser->is_active
                     ],
                     'payment_data' => [
-                        'contract_number' => $paymentData['contract']->contract_number,
-                        'franchise_fee_amount' => $paymentData['franchise_fee_transaction']->amount,
-                        'payment_url' => $paymentData['payment_url'],
-                        'due_date' => $paymentData['franchise_fee_transaction']->due_date
+                        'contract_number' => $paymentData['contract']->contract_number ?? null,
+                        'franchise_fee_amount' => $paymentData['franchise_fee_transaction']->amount ?? null,
+                        'payment_url' => $paymentData['payment_url'] ?? null,
+                        'due_date' => $paymentData['franchise_fee_transaction']->due_date ?? null,
+                        'public_links' => $paymentData['public_links'] ?? null,
                     ]
                 ]);
 
@@ -211,6 +260,7 @@ class FranchiseeController extends Controller
             ], 500);
         }
     }
+
 
 
 
@@ -416,6 +466,64 @@ class FranchiseeController extends Controller
             'financial_contribution' => $franchisee->financial_contribution,
             'created_at' => $targetUser->created_at,
         ]);
+    }
+
+
+
+    /**
+     * Débiter le compte
+     */
+    public function debit(float $amount, string $description, $transaction = null): AccountMovement
+    {
+        $balanceBefore = $this->current_balance;
+        $this->current_balance -= $amount;
+        $this->save();
+
+        return AccountMovement::create([
+            'user_id' => $this->user_id,
+            'transaction_id' => $transaction ? $transaction->id : null,
+            'movement_type' => AccountMovement::TYPE_DEBIT,
+            'amount' => $amount,
+            'description' => $description,
+            'balance_before' => $balanceBefore,
+            'balance_after' => $this->current_balance
+        ]);
+    }
+
+    /**
+     * Créditer le compte
+     */
+    public function credit(float $amount, string $description, $transaction = null): AccountMovement
+    {
+        $balanceBefore = $this->current_balance;
+        $this->current_balance += $amount;
+        $this->save();
+
+        return AccountMovement::create([
+            'user_id' => $this->user_id,
+            'transaction_id' => $transaction ? $transaction->id : null,
+            'movement_type' => AccountMovement::TYPE_CREDIT,
+            'amount' => $amount,
+            'description' => $description,
+            'balance_before' => $balanceBefore,
+            'balance_after' => $this->current_balance
+        ]);
+    }
+
+    /**
+     * Obtenir le solde disponible
+     */
+    public function getAvailableBalance(): float
+    {
+        return $this->current_balance + $this->available_credit;
+    }
+
+    /**
+     * Relation avec les mouvements de compte
+     */
+    public function movements()
+    {
+        return $this->hasMany(AccountMovement::class, 'user_id', 'user_id');
     }
 
 

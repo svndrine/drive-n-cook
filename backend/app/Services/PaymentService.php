@@ -2,18 +2,18 @@
 
 namespace App\Services;
 
-use App\Models\Transaction;
-use App\Models\FranchiseeAccount;
-use App\Models\AccountMovement;
-use App\Models\PaymentSchedule;
 use App\Models\FranchiseContract;
+use App\Models\FranchiseeAccount;
+use App\Models\PaymentSchedule;
 use App\Models\PaymentType;
+use App\Models\Transaction;
 use App\Models\User;
+use App\Models\AccountMovement;
+use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Stripe\Stripe;
 use Stripe\PaymentIntent;
-use Exception;
+use Stripe\Stripe;
 
 class PaymentService
 {

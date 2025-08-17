@@ -67,5 +67,6 @@ class Kernel extends HttpKernel
 
         // 🎯 TON MIDDLEWARE ICI !
         'superadmin' => \App\Http\Middleware\IsSuperadmin::class,
+        'admin' => \App\Http\Middleware\IsAdmin::class,
     ];
 }

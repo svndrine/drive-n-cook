@@ -8,6 +8,14 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\Api\PaymentController; // AJOUT DE L'IMPORT MANQUANT
 use App\Http\Middleware\IsSuperadmin;
+use App\Http\Controllers\PublicLinkController;
+use App\Http\Controllers\Api\WarehouseController;
+use App\Http\Controllers\Api\ProductCategoryController;
+use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\FranchiseOrderController;
+use App\Http\Controllers\Api\StockController;
+
+
 
 // Middleware CORS temporaire pour test
 Route::options('{any}', function () {
@@ -126,3 +134,120 @@ Route::middleware(['auth:sanctum', 'superadmin'])->group(function () {
     Route::post('/admins', [AdminController::class, 'store']);
     Route::delete('/admins/{id}', [AdminController::class, 'destroy']);
 });
+
+
+
+Route::prefix('public')->group(function () {
+    // 4.1 Afficher contrat (métadonnées et url PDF)
+    Route::get('contract/{token}', [PublicLinkController::class, 'getContract']);
+    // 4.2 Accepter contrat
+    Route::post('contract/{token}/accept', [PublicLinkController::class, 'acceptContract']);
+    // 4.3 Créer PaymentIntent pour droit d'entrée
+    Route::post('entry-fee/{token}/create-payment-intent', [PublicLinkController::class, 'createEntryFeeIntent']);
+
+    // Afficher le PDF directement (CORRIGÉE)
+    Route::get('contract/{token}/view', [PublicLinkController::class, 'contract'])->name('public.contract.view');
+});
+
+
+
+
+
+
+// Routes protégées par l'authentification
+Route::middleware(['auth:sanctum'])->group(function () {
+
+    // === GESTION DES ENTREPÔTS ===
+    Route::prefix('warehouses')->group(function () {
+        Route::get('/', [WarehouseController::class, 'index']);
+        Route::get('/{id}', [WarehouseController::class, 'show']);
+        Route::get('/{id}/stocks', [WarehouseController::class, 'stocks']);
+        Route::get('/{id}/alerts', [WarehouseController::class, 'stockAlerts']);
+
+        // Routes admin uniquement (utilise votre middleware IsAdmin)
+        Route::middleware('admin')->group(function () {
+            Route::post('/', [WarehouseController::class, 'store']);
+            Route::put('/{id}', [WarehouseController::class, 'update']);
+            Route::delete('/{id}', [WarehouseController::class, 'destroy']);
+            Route::patch('/{warehouseId}/products/{productId}/stock', [WarehouseController::class, 'updateStock']);
+            Route::post('/{warehouseId}/products/{productId}/add-stock', [WarehouseController::class, 'addStock']);
+        });
+    });
+
+    // === GESTION DES CATÉGORIES ===
+    Route::prefix('product-categories')->group(function () {
+        Route::get('/', [ProductCategoryController::class, 'index']);
+        Route::get('/{id}', [ProductCategoryController::class, 'show']);
+
+        // Routes admin uniquement
+        Route::middleware('admin')->group(function () {
+            Route::post('/', [ProductCategoryController::class, 'store']);
+            Route::put('/{id}', [ProductCategoryController::class, 'update']);
+            Route::delete('/{id}', [ProductCategoryController::class, 'destroy']);
+            Route::patch('/{id}/toggle-status', [ProductCategoryController::class, 'toggleStatus']);
+            Route::post('/reorder', [ProductCategoryController::class, 'reorder']);
+        });
+    });
+
+    // === GESTION DES PRODUITS ===
+    Route::prefix('products')->group(function () {
+        Route::get('/', [ProductController::class, 'index']);
+        Route::get('/{id}', [ProductController::class, 'show']);
+        Route::get('/warehouse/{warehouseId}/catalog', [ProductController::class, 'catalog']);
+        Route::get('/alerts/stock', [ProductController::class, 'stockAlerts']);
+
+        // Routes admin uniquement
+        Route::middleware('admin')->group(function () {
+            Route::post('/', [ProductController::class, 'store']);
+            Route::put('/{id}', [ProductController::class, 'update']);
+            Route::delete('/{id}', [ProductController::class, 'destroy']);
+            Route::post('/{id}/duplicate', [ProductController::class, 'duplicate']);
+            Route::post('/bulk-import', [ProductController::class, 'bulkImport']);
+        });
+    });
+
+    // === GESTION DES COMMANDES ===
+    Route::prefix('orders')->group(function () {
+        Route::get('/', [FranchiseOrderController::class, 'index']);
+        Route::get('/{id}', [FranchiseOrderController::class, 'show']);
+        Route::post('/', [FranchiseOrderController::class, 'store']);
+        Route::put('/{id}', [FranchiseOrderController::class, 'update']);
+        Route::delete('/{id}', [FranchiseOrderController::class, 'cancel']);
+        Route::get('/stats/summary', [FranchiseOrderController::class, 'stats']);
+
+        // Gestion du panier/contenu de commande
+        Route::post('/{id}/items', [FranchiseOrderController::class, 'addItem']);
+        Route::put('/{orderId}/items/{itemId}', [FranchiseOrderController::class, 'updateItem']);
+        Route::delete('/{orderId}/items/{itemId}', [FranchiseOrderController::class, 'removeItem']);
+
+        // Actions sur les commandes
+        Route::patch('/{id}/submit', [FranchiseOrderController::class, 'submit']);
+
+        // Routes admin uniquement
+        Route::middleware('admin')->group(function () {
+            Route::patch('/{id}/confirm', [FranchiseOrderController::class, 'confirm']);
+            Route::patch('/{id}/status', [FranchiseOrderController::class, 'updateStatus']);
+        });
+    });
+
+    // === GESTION DES STOCKS ===
+    Route::prefix('stock')->group(function () {
+        Route::get('/movements', [StockController::class, 'movements']);
+        Route::get('/overview', [StockController::class, 'overview']);
+        Route::get('/alerts', [StockController::class, 'alerts']);
+        Route::get('/valuation', [StockController::class, 'valuation']);
+        Route::get('/products/{productId}/history', [StockController::class, 'productHistory']);
+        Route::get('/reorder-suggestions', [StockController::class, 'reorderSuggestions']);
+
+        // Routes admin uniquement
+        Route::middleware('admin')->group(function () {
+            Route::post('/adjustment', [StockController::class, 'adjustment']);
+            Route::post('/stock-in', [StockController::class, 'stockIn']);
+            Route::post('/stock-out', [StockController::class, 'stockOut']);
+            Route::post('/transfer', [StockController::class, 'transfer']);
+        });
+    });
+});
+
+// Routes publiques pour le catalogue (franchisés non connectés)
+Route::get('/public/warehouses/{warehouseId}/catalog', [ProductController::class, 'catalog']);
