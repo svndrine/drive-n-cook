@@ -137,6 +137,7 @@ class FranchiseeController extends Controller
             ->with('franchisee')
             ->first();
 
+
         if (!$targetUser || !$targetUser->franchisee) {
             return response()->json(['message' => 'Franchisé non trouvé'], 404);
         }
@@ -148,6 +149,19 @@ class FranchiseeController extends Controller
         // Dans FranchiseeController.php, dans la méthode toggleStatus, ajoutez cette vérification :
 
         try {
+            \Log::info('=== DEBUG VALIDATION ===');
+
+
+            $franchisee = Franchisee::where('user_id', $id)->first();
+            \Log::info('Franchisee trouvé:', $franchisee ? $franchisee->toArray() : ['null']);
+
+            if ($franchisee) {
+                \Log::info('Tentative d\'accès à user relation...');
+                $franchiseeUser = $franchisee->user; // <- CHANGÉ
+                \Log::info('User relation:', $franchiseeUser ? $franchiseeUser->toArray() : ['null']);
+            }
+
+
             // VALIDATION COMPLÈTE = Activation du système de paiement
             if ($wasInactive && $isBeingActivated) {
                 \Log::info('Début processus validation complète');
@@ -253,6 +267,7 @@ class FranchiseeController extends Controller
         } catch (\Exception $e) {
             // Log l'erreur
             Log::error('Erreur validation franchisé: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
 
             return response()->json([
                 'message' => 'Erreur lors de la validation du franchisé.',

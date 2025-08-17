@@ -83,7 +83,7 @@
         @endif
 
         <div class="password-box">
-            <p><strong>Email :</strong> {{ $userEmail ?? 'Non disponible' }}</p>
+            <p><strong>Email :</strong> {{ $franchisee->user->email }}</p>
             <p><strong>Mot de passe :</strong></p>
             <div class="password">{{ $password }}</div>
         </div>

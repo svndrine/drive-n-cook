@@ -11,6 +11,17 @@ import UnvalidatedFranchiseesView from "./UnvalidatedFranchiseesView.jsx";
 import FranchiseeDetails from './FranchiseeDetails.jsx';
 import { getFranchisees } from '../services/api.js';
 import { useUser } from '../context/UserContext.jsx';
+import WarehouseOverviewView from './WarehouseOverviewView.jsx';
+// import StockManagementView from './StockManagementView.jsx';
+// import StockAlertsView from './StockAlertsView.jsx';
+// import StockMovementsView from './StockMovementsView.jsx';
+// import ProductCatalogView from './ProductCatalogView.jsx';
+// import AllOrdersView from './AllOrdersView.jsx';
+// import PendingOrdersView from './PendingOrdersView.jsx';
+// import PreparingOrdersView from './PreparingOrdersView.jsx';
+// import DeliveredOrdersView from './DeliveredOrdersView.jsx';
+// import OrderStatsView from './OrderStatsView.jsx';
+
 
 // Composant wrapper pour FranchiseeDetails avec paramètres
 function FranchiseeDetailsWrapper({ theme, onBackToList }) {
@@ -42,6 +53,21 @@ function AdminDashboard() {
         if (path.includes('/franchisees/validated')) return 'pendingFranchisees';
         if (path.includes('/franchisees/unvalidated')) return 'disabledFranchisees';
         if (path.includes('/franchisees')) return 'franchisees';
+
+        // Entrepôts
+        if (path.includes('/warehouse/overview')) return 'warehouseOverview';
+        if (path.includes('/warehouse/stock-management')) return 'stockManagement';
+        if (path.includes('/warehouse/alerts')) return 'stockAlerts';
+        if (path.includes('/warehouse/movements')) return 'stockMovements';
+        if (path.includes('/warehouse/catalog')) return 'productCatalog';
+
+        // Commandes
+        if (path.includes('/orders/all')) return 'allOrders';
+        if (path.includes('/orders/pending')) return 'pendingOrders';
+        if (path.includes('/orders/preparing')) return 'preparingOrders';
+        if (path.includes('/orders/delivered')) return 'deliveredOrders';
+        if (path.includes('/orders/statistics')) return 'orderStats';
+
         if (path.includes('/notifications')) return 'notifications';
         if (path.includes('/admins')) return 'admins';
         return 'dashboard';
@@ -89,7 +115,30 @@ function AdminDashboard() {
             'notifications': '/admin/notifications',
             'admins': '/admin/admins',
             'pendingFranchisees': '/admin/franchisees/validated',
-            'disabledFranchisees': '/admin/franchisees/unvalidated'
+            'disabledFranchisees': '/admin/franchisees/unvalidated',
+            'contracts': '/admin/contracts',
+            'onboarding': '/admin/onboarding',
+
+            // Gestion Financière
+            'transactions': '/admin/financial/transactions',
+            'franchiseeAccounts': '/admin/financial/accounts',
+            'royalties': '/admin/financial/royalties',
+            'financialStats': '/admin/financial/stats',
+            'financialReports': '/admin/financial/reports',
+
+            // Routes Entrepôts
+            'warehouseOverview': '/admin/warehouse/overview',
+            'stockManagement': '/admin/warehouse/stock-management',
+            'stockAlerts': '/admin/warehouse/alerts',
+            'stockMovements': '/admin/warehouse/movements',
+            'productCatalog': '/admin/warehouse/catalog',
+
+            //  Routes Commandes
+            'allOrders': '/admin/orders/all',
+            'pendingOrders': '/admin/orders/pending',
+            'preparingOrders': '/admin/orders/preparing',
+            'deliveredOrders': '/admin/orders/delivered',
+            'orderStats': '/admin/orders/statistics'
         };
 
         if (routes[view]) {
@@ -154,6 +203,12 @@ function AdminDashboard() {
                         <Route path="admins" element={
                             <AdminsView admins={[]} theme={theme} user={user} />
                         } />
+
+                        {/* : Routes Entrepôts */}
+                        <Route path="warehouse/overview" element={
+                            <WarehouseOverviewView theme={theme} />
+                        } />
+
                     </Routes>
                 </main>
             </div>

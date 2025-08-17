@@ -77,6 +77,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Créer une intention de paiement Stripe
         Route::post('/create-payment-intent', [PaymentController::class, 'createPaymentIntent']);
+        Route::get('/stock-purchases', [PaymentController::class, 'getStockPurchases']);
+        Route::post('/pay-stock-invoice/{transactionId}', [PaymentController::class, 'payStockInvoice']);
     });
 
     // Routes pour les administrateurs uniquement
