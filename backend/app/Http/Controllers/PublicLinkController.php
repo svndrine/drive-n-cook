@@ -72,61 +72,58 @@ class PublicLinkController extends Controller
     {
         Log::info('=== ACCEPT CONTRACT DEBUG ===');
         Log::info('Token reçu: ' . $token);
-        Log::info('Method: ' . $request->method());
-        Log::info('URL: ' . $request->fullUrl());
 
         try {
-            $link = SignedLinkService::check($token, 'contract_accept');
-            Log::info('Lien contract_accept trouvé pour user_id: ' . $link->user_id);
+            $link = SignedLinkService::check($token, 'contract_view');
+            Log::info('Lien contract_view trouvé pour user_id: ' . $link->user_id);
 
             $contract = FranchiseContract::where('user_id', $link->user_id)->latest()->first();
 
             if (!$contract) {
-                Log::error('Aucun contrat trouvé pour user_id: ' . $link->user_id);
                 return response()->json(['message' => 'Contrat non trouvé'], 404);
             }
 
-            Log::info('Contrat avant modification: ' . json_encode([
-                    'id' => $contract->id,
+            // Vérifier si déjà signé
+            if ($contract->status === 'signed') {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Contrat déjà signé',
+                    'contract_number' => $contract->contract_number,
                     'status' => $contract->status,
-                    'accepted_at' => $contract->accepted_at
-                ]));
+                    'redirect' => true
+                ]);
+            }
 
-            $contract->status = 'accepted';
-            $contract->accepted_at = now();
+            // Signer le contrat
+            $contract->status = 'signed';
+            $contract->signed_at = now();
             $contract->save();
 
-            Log::info('Contrat après modification: ' . json_encode([
-                    'id' => $contract->id,
-                    'status' => $contract->status,
-                    'accepted_at' => $contract->accepted_at
-                ]));
+            // RÉGÉNÉRER LE PDF AVEC LES SIGNATURES
+            Log::info('Régénération du PDF avec signatures...');
+            $pdfService = app(\App\Services\ContractPdfService::class);
+            $pdfPath = $pdfService->regenerateContractPdf($contract);
 
-            // Marquer le lien comme utilisé
-            $link->update(['used_at' => now()]);
-            Log::info('Lien marqué comme utilisé');
+            Log::info('Contrat signé et PDF régénéré avec succès');
 
             return response()->json([
-                'message' => 'Contrat accepté avec succès',
+                'success' => true,
+                'message' => 'Contrat signé avec succès',
                 'contract_number' => $contract->contract_number,
-                'status' => $contract->status
+                'status' => $contract->status,
+                'signed_at' => $contract->signed_at->format('d/m/Y à H:i'),
+                'redirect' => true
             ]);
 
         } catch (\Exception $e) {
-            Log::error('=== ERREUR ACCEPT CONTRACT ===');
-            Log::error('Message: ' . $e->getMessage());
-            Log::error('File: ' . $e->getFile() . ':' . $e->getLine());
-
+            Log::error('Erreur acceptation: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Erreur lors de l\'acceptation: ' . $e->getMessage(),
-                'debug' => [
-                    'token' => $token,
-                    'file' => basename($e->getFile()),
-                    'line' => $e->getLine()
-                ]
+                'success' => false,
+                'message' => 'Erreur lors de la signature: ' . $e->getMessage()
             ], 500);
         }
     }
+
 
     // POST /api/public/entry-fee/{token}/create-payment-intent
     public function createEntryFeeIntent(Request $request, string $token)
@@ -143,7 +140,7 @@ class PublicLinkController extends Controller
                 ->whereHas('paymentType', function($q) {
                     $q->where('code', 'franchise_fee');
                 })
-                ->where('status', 'pending')
+                ->whereIn('status', ['pending', 'processing'])
                 ->first();
 
             if (!$transaction) {
@@ -203,6 +200,10 @@ class PublicLinkController extends Controller
      * Affiche le PDF du contrat directement dans le navigateur
      * Route: GET /public/contract/{token}
      */
+    /**
+     * Affiche le PDF du contrat directement dans le navigateur
+     * Route: GET /public/contract/{token}/view
+     */
     public function contract(string $token)
     {
         Log::info('=== DISPLAY CONTRACT PDF ===');
@@ -216,38 +217,32 @@ class PublicLinkController extends Controller
             Log::info('Contrat trouvé: ' . $contract->contract_number);
 
             // Générer le PDF si nécessaire
-            if (!$contract->pdf_url) {
+            if (!$contract->contract_pdf_path) {
                 Log::info('Aucun PDF existant, génération en cours...');
                 $pdfService = app(\App\Services\ContractPdfService::class);
-                $pdfUrl = $pdfService->generateContractPdf($contract);
+                $pdfPath = $pdfService->generateContractPdf($contract);
 
-                // IMPORTANT: Recharger le contrat depuis la DB
+                // Recharger le contrat depuis la DB
                 $contract = $contract->fresh();
-                Log::info('PDF généré: ' . $pdfUrl);
+                Log::info('PDF généré: ' . $pdfPath);
             }
 
-            // Construire le chemin du fichier
-            $pdfUrl = $contract->pdf_url;
-            Log::info('PDF URL brute: ' . $pdfUrl);
+            // Obtenir le contenu du PDF de manière sécurisée
+            $pdfService = app(\App\Services\ContractPdfService::class);
+            $pdfContent = $pdfService->getPdfContent($contract);
 
-            // Supprimer le préfixe /storage/ s'il existe
-            $relativePath = ltrim(str_replace('/storage/', '', $pdfUrl), '/');
-            Log::info('Chemin relatif calculé: ' . $relativePath);
-
-            $fullPath = storage_path('app/public/' . $relativePath);
-
-            Log::info('Chemin complet PDF : ' . $fullPath);
-            Log::info('Le fichier existe-t-il ? ' . (file_exists($fullPath) ? 'OUI' : 'NON'));
-
-            if (!file_exists($fullPath)) {
-                Log::error('Fichier PDF non trouvé: ' . $fullPath);
-                return response()->json(['message' => 'PDF non trouvé'], 404);
+            if (!$pdfContent) {
+                Log::error('Impossible de lire le contenu du PDF');
+                return response()->json(['message' => 'PDF non accessible'], 404);
             }
 
             // Retourner le PDF avec les bons headers
-            return response()->file($fullPath, [
+            return response($pdfContent, 200, [
                 'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'inline; filename="' . basename($fullPath) . '"'
+                'Content-Disposition' => 'inline; filename="contract_' . $contract->contract_number . '.pdf"',
+                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0'
             ]);
 
         } catch (\Exception $e) {

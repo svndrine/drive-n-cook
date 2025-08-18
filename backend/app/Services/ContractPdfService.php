@@ -39,15 +39,17 @@ class ContractPdfService
                 'isPhpEnabled' => true
             ]);
 
-            // Chemin du fichier
+            // Chemin du fichier - STOCKAGE PRIVÉ
             $timestamp = date('Ymd_His');
             $year = date('Y');
             $month = date('m');
 
             // Nom du fichier
             $fileName = "contract_{$contract->contract_number}_{$timestamp}.pdf";
-            $relativePath = "contracts/{$year}/{$month}/{$fileName}";
-            $fullPath = storage_path("app/public/{$relativePath}");
+
+            // CHANGEMENT: Stockage dans private au lieu de public
+            $relativePath = "private/contracts/{$year}/{$month}/{$fileName}";
+            $fullPath = storage_path("app/{$relativePath}");
 
             // Créer le répertoire si nécessaire
             $directory = dirname($fullPath);
@@ -58,23 +60,20 @@ class ContractPdfService
             // Sauvegarder le PDF
             $pdf->save($fullPath);
 
-            // URL publique accessible via le lien symbolique
-            $publicUrl = "/storage/{$relativePath}";
-
-            // IMPORTANT: Mettre à jour le contrat avec l'URL du PDF
+            // IMPORTANT: Stocker le chemin relatif (pas d'URL publique)
             $contract->update([
-                'pdf_url' => $publicUrl,
-                'contract_pdf_path' => $relativePath
+                'contract_pdf_path' => $relativePath,
+                'pdf_url' => null // Pas d'URL publique directe
             ]);
 
             Log::info('PDF contrat généré', [
                 'contract_id' => $contract->id,
                 'contract_number' => $contract->contract_number,
                 'pdf_path' => $relativePath,
-                'pdf_url' => $publicUrl
+                'full_path' => $fullPath
             ]);
 
-            return $publicUrl;
+            return $relativePath;
 
         } catch (\Exception $e) {
             Log::error('Erreur génération PDF contrat', [
@@ -89,19 +88,53 @@ class ContractPdfService
     }
 
     /**
+     * Obtenir le contenu du PDF pour affichage sécurisé
+     */
+    public function getPdfContent(FranchiseContract $contract): ?string
+    {
+        try {
+            if (!$contract->contract_pdf_path) {
+                return null;
+            }
+
+            $fullPath = storage_path("app/{$contract->contract_pdf_path}");
+
+            if (!file_exists($fullPath)) {
+                Log::warning('Fichier PDF non trouvé', [
+                    'contract_id' => $contract->id,
+                    'path' => $fullPath
+                ]);
+                return null;
+            }
+
+            return file_get_contents($fullPath);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lecture PDF contrat', [
+                'contract_id' => $contract->id,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Supprimer le PDF d'un contrat
      */
     public function deleteContractPdf(FranchiseContract $contract): bool
     {
         try {
-            if ($contract->pdf_url) {
-                $path = str_replace('/storage/', '', $contract->pdf_url);
+            if ($contract->contract_pdf_path) {
+                $fullPath = storage_path("app/{$contract->contract_pdf_path}");
 
-                if (Storage::exists($path)) {
-                    Storage::delete($path);
+                if (file_exists($fullPath)) {
+                    unlink($fullPath);
                 }
 
-                $contract->update(['pdf_url' => null]);
+                $contract->update([
+                    'contract_pdf_path' => null,
+                    'pdf_url' => null
+                ]);
 
                 Log::info('PDF contrat supprimé', [
                     'contract_id' => $contract->id,

@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\ProductCategoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\FranchiseOrderController;
 use App\Http\Controllers\Api\StockController;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 
 
@@ -148,7 +150,7 @@ Route::prefix('public')->group(function () {
     Route::post('entry-fee/{token}/create-payment-intent', [PublicLinkController::class, 'createEntryFeeIntent']);
 
     // Afficher le PDF directement (CORRIGÉE)
-    Route::get('contract/{token}/view', [PublicLinkController::class, 'contract'])->name('public.contract.view');
+    Route::get('contract/{token}/view', [PublicLinkController::class, 'contract']);
 });
 
 
@@ -215,7 +217,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/', [FranchiseOrderController::class, 'store']);
         Route::put('/{id}', [FranchiseOrderController::class, 'update']);
         Route::delete('/{id}', [FranchiseOrderController::class, 'cancel']);
-        Route::get('/stats/summary', [FranchiseOrderController::class, 'stats']);
+        Route::get('/stats', [FranchiseOrderController::class, 'stats']);
 
         // Gestion du panier/contenu de commande
         Route::post('/{id}/items', [FranchiseOrderController::class, 'addItem']);
@@ -227,8 +229,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Routes admin uniquement
         Route::middleware('admin')->group(function () {
-            Route::patch('/{id}/confirm', [FranchiseOrderController::class, 'confirm']);
-            Route::patch('/{id}/status', [FranchiseOrderController::class, 'updateStatus']);
+            Route::post('/{id}/confirm', [FranchiseOrderController::class, 'confirm']);
+            Route::put('/{id}/status', [FranchiseOrderController::class, 'updateStatus']);
         });
     });
 

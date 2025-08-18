@@ -124,7 +124,7 @@ class PaymentService
         $transaction = Transaction::with(['user', 'paymentType', 'franchiseContract'])
             ->findOrFail($transactionId);
 
-        if ($transaction->status !== Transaction::STATUS_PENDING) {
+        if (!in_array($transaction->status, [Transaction::STATUS_PENDING, Transaction::STATUS_PROCESSING])) {
             throw new Exception("Cette transaction ne peut pas être payée (statut: {$transaction->status})");
         }
 

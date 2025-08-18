@@ -1196,3 +1196,198 @@ export async function getStockValuation(filters = {}) {
 
     return await response.json();
 }
+
+
+
+
+
+
+/**
+ * Obtenir la liste des commandes franchisés (admin)
+ * @param {object} filters - Filtres optionnels (status, warehouse_id, franchisee_id, date_from, date_to)
+ * @returns {Promise<object>} Liste des commandes
+ */
+export async function getFranchiseOrders(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value);
+        }
+    });
+
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/orders${queryString ? '?' + queryString : ''}`;
+
+    console.log('URL appelée:', url); // DEBUG
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des commandes`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Obtenir les détails d'une commande
+ * @param {number} orderId - ID de la commande
+ * @returns {Promise<object>} Détails de la commande
+ */
+export async function getFranchiseOrder(orderId) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/orders/${orderId}`, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération de la commande`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Confirmer une commande (admin uniquement)
+ * @param {number} orderId - ID de la commande
+ * @returns {Promise<object>} Commande confirmée
+ */
+export async function confirmOrder(orderId) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/orders/${orderId}/confirm`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la confirmation de la commande`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Mettre à jour le statut d'une commande (admin uniquement)
+ * @param {number} orderId - ID de la commande
+ * @param {string} status - Nouveau statut (confirmed, preparing, ready, delivered)
+ * @returns {Promise<object>} Commande mise à jour
+ */
+export async function updateOrderStatus(orderId, status) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/orders/${orderId}/status`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify({ status })
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la mise à jour du statut`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Annuler une commande (admin uniquement)
+ * @param {number} orderId - ID de la commande
+ * @param {string} reason - Raison de l'annulation
+ * @returns {Promise<object>} Commande annulée
+ */
+export async function cancelOrder(orderId, reason = '') {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/orders/${orderId}/cancel`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify({ reason })
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de l'annulation de la commande`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Obtenir les statistiques des commandes (admin uniquement)
+ * @param {object} filters - Filtres optionnels (date_from, date_to, warehouse_id)
+ * @returns {Promise<object>} Statistiques des commandes
+ */
+export async function getOrderStats(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams(filters);
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/orders/stats${queryString ? '?' + queryString : ''}`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des statistiques`);
+    }
+
+    return await response.json();
+}

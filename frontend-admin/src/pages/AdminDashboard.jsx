@@ -16,8 +16,8 @@ import WarehouseOverviewView from './WarehouseOverviewView.jsx';
 // import StockAlertsView from './StockAlertsView.jsx';
 // import StockMovementsView from './StockMovementsView.jsx';
 // import ProductCatalogView from './ProductCatalogView.jsx';
-// import AllOrdersView from './AllOrdersView.jsx';
-// import PendingOrdersView from './PendingOrdersView.jsx';
+import AllOrdersView from './AllOrdersView.jsx';
+ import PendingOrdersView from './PendingOrdersView.jsx';
 // import PreparingOrdersView from './PreparingOrdersView.jsx';
 // import DeliveredOrdersView from './DeliveredOrdersView.jsx';
 // import OrderStatsView from './OrderStatsView.jsx';
@@ -208,6 +208,19 @@ function AdminDashboard() {
                         <Route path="warehouse/overview" element={
                             <WarehouseOverviewView theme={theme} />
                         } />
+
+
+
+                        {/* NOUVEAU: Routes Commandes */}
+                        <Route path="orders/all" element={
+                            <AllOrdersView theme={theme} />
+                        } />
+
+                        <Route path="orders/pending" element={
+                            <PendingOrdersView theme={theme} />
+                        } />
+
+
 
                     </Routes>
                 </main>
