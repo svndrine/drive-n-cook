@@ -4,7 +4,8 @@ namespace App\Jobs;
 
 use App\Models\Transaction;
 use App\Models\FranchiseeAccount;
-use App\Services\PaymentService;
+use App\Models\PaymentSchedule;
+use App\Services\InvoiceService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -12,64 +13,62 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\PaymentConfirmationMail;
 
 class ProcessStripeWebhookJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $webhookData;
-    protected $eventType;
+    public $webhookData;
+    protected $invoiceService;
 
-    /**
-     * Create a new job instance.
-     */
-    public function __construct(array $webhookData, string $eventType)
+    public function __construct($webhookData)
     {
         $this->webhookData = $webhookData;
-        $this->eventType = $eventType;
+        $this->invoiceService = app(InvoiceService::class);
     }
 
-    /**
-     * Execute the job.
-     */
-    public function handle(): void
+    public function handle()
     {
         try {
+            $eventType = $this->webhookData['type'];
+            $paymentIntent = $this->webhookData['data']['object'];
+
             Log::info('Traitement webhook Stripe', [
-                'event_type' => $this->eventType,
-                'payment_intent_id' => $this->webhookData['id'] ?? null
+                'event_type' => $eventType,
+                'payment_intent_id' => $paymentIntent['id']
             ]);
 
-            switch ($this->eventType) {
+            switch ($eventType) {
                 case 'payment_intent.succeeded':
-                    $this->handlePaymentSucceeded();
+                    $this->handlePaymentSucceeded($paymentIntent);
                     break;
 
                 case 'payment_intent.payment_failed':
-                    $this->handlePaymentFailed();
+                    $this->handlePaymentFailed($paymentIntent);
                     break;
 
                 case 'payment_intent.canceled':
-                    $this->handlePaymentCanceled();
+                    $this->handlePaymentCanceled($paymentIntent);
                     break;
 
                 case 'payment_intent.requires_action':
-                    $this->handlePaymentRequiresAction();
+                    $this->handlePaymentRequiresAction($paymentIntent);
                     break;
 
                 default:
-                    Log::info('Type d\'événement webhook non traité: ' . $this->eventType);
+                    Log::info('Type d\'événement webhook non géré', [
+                        'event_type' => $eventType
+                    ]);
+                    break;
             }
 
         } catch (\Exception $e) {
-            Log::error('Erreur traitement webhook Stripe', [
-                'event_type' => $this->eventType,
+            Log::error('Erreur lors du traitement du webhook Stripe', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'webhook_data' => $this->webhookData
             ]);
 
-            // Relancer le job en cas d'erreur temporaire
             throw $e;
         }
     }
@@ -77,160 +76,55 @@ class ProcessStripeWebhookJob implements ShouldQueue
     /**
      * Traiter un paiement réussi
      */
-    protected function handlePaymentSucceeded(): void
+    private function handlePaymentSucceeded($paymentIntent)
     {
-        $paymentIntentId = $this->webhookData['id'];
-        $amountReceived = $this->webhookData['amount_received'] / 100; // Stripe utilise les centimes
-
-        // Trouver la transaction correspondante
-        $transaction = Transaction::where('stripe_payment_intent_id', $paymentIntentId)->first();
+        $transaction = Transaction::where('stripe_payment_intent_id', $paymentIntent['id'])->first();
 
         if (!$transaction) {
-            Log::warning('Transaction non trouvée pour payment_intent', ['payment_intent_id' => $paymentIntentId]);
+            Log::warning('Transaction non trouvée pour payment_intent', [
+                'payment_intent_id' => $paymentIntent['id']
+            ]);
             return;
         }
+
+        Log::info('Paiement réussi', [
+            'transaction_id' => $transaction->id,
+            'amount' => $paymentIntent['amount'] / 100,
+            'transaction_type' => $transaction->transaction_type
+        ]);
 
         // Mettre à jour la transaction
         $transaction->update([
             'status' => 'completed',
             'paid_at' => now(),
-            'stripe_charge_id' => $this->webhookData['latest_charge'] ?? null,
-            'payment_method' => $this->webhookData['payment_method']['type'] ?? 'card',
-            'metadata' => json_encode($this->webhookData)
+            'stripe_charge_id' => $paymentIntent['latest_charge'] ?? null
         ]);
 
-        // Mettre à jour le compte franchisé
-        $account = FranchiseeAccount::where('user_id', $transaction->user_id)->first();
-        if ($account) {
-            // Créditer le compte si c'est un remboursement, sinon débiter
-            if ($transaction->transaction_type === 'refund') {
-                $account->credit($amountReceived, "Remboursement - Transaction #{$transaction->id}");
-            } else {
-                // Pour les paiements normaux, on débite le compte (le franchisé paie)
-                $account->debit($amountReceived, "Paiement validé - Transaction #{$transaction->id}");
-            }
-        }
-
-        // Envoyer email de confirmation
+        // 🔥 NOUVEAU : Générer automatiquement la facture
         try {
-            $user = $transaction->user;
-            if ($user && $user->email) {
-                Mail::to($user->email)->queue(new PaymentConfirmationMail($transaction));
-            }
+            $invoice = $this->invoiceService->generateInvoicePdf($transaction);
+
+            // Envoyer la facture par email
+            $this->invoiceService->sendInvoiceByEmail($invoice);
+
+            Log::info('Facture générée et envoyée automatiquement', [
+                'transaction_id' => $transaction->id,
+                'invoice_number' => $invoice->invoice_number,
+                'invoice_id' => $invoice->id
+            ]);
+
         } catch (\Exception $e) {
-            Log::error('Erreur envoi email confirmation paiement', [
+            Log::error('Erreur lors de la génération de facture automatique', [
                 'transaction_id' => $transaction->id,
                 'error' => $e->getMessage()
             ]);
+            // Ne pas faire échouer le webhook si la facture échoue
         }
 
-        // Actions spécifiques selon le type de paiement
-        $this->handleSpecificPaymentType($transaction);
+        // Créditer le compte franchisé
+        $this->creditFranchiseeAccount($transaction);
 
-        Log::info('Paiement traité avec succès', [
-            'transaction_id' => $transaction->id,
-            'amount' => $amountReceived,
-            'user_id' => $transaction->user_id
-        ]);
-    }
-
-    /**
-     * Traiter un paiement échoué
-     */
-    protected function handlePaymentFailed(): void
-    {
-        $paymentIntentId = $this->webhookData['id'];
-        $failureReason = $this->webhookData['last_payment_error']['message'] ?? 'Erreur inconnue';
-
-        $transaction = Transaction::where('stripe_payment_intent_id', $paymentIntentId)->first();
-
-        if (!$transaction) {
-            Log::warning('Transaction non trouvée pour payment_intent failed', ['payment_intent_id' => $paymentIntentId]);
-            return;
-        }
-
-        // Mettre à jour la transaction
-        $transaction->update([
-            'status' => 'failed',
-            'failure_reason' => $failureReason,
-            'metadata' => json_encode($this->webhookData)
-        ]);
-
-        // Envoyer notification d'échec (email + peut-être SMS)
-        try {
-            $user = $transaction->user;
-            if ($user && $user->email) {
-                // TODO: Créer PaymentFailedMail
-                // Mail::to($user->email)->queue(new PaymentFailedMail($transaction, $failureReason));
-            }
-        } catch (\Exception $e) {
-            Log::error('Erreur envoi notification échec paiement', [
-                'transaction_id' => $transaction->id,
-                'error' => $e->getMessage()
-            ]);
-        }
-
-        Log::warning('Paiement échoué', [
-            'transaction_id' => $transaction->id,
-            'reason' => $failureReason,
-            'user_id' => $transaction->user_id
-        ]);
-    }
-
-    /**
-     * Traiter un paiement annulé
-     */
-    protected function handlePaymentCanceled(): void
-    {
-        $paymentIntentId = $this->webhookData['id'];
-
-        $transaction = Transaction::where('stripe_payment_intent_id', $paymentIntentId)->first();
-
-        if (!$transaction) {
-            return;
-        }
-
-        $transaction->update([
-            'status' => 'canceled',
-            'metadata' => json_encode($this->webhookData)
-        ]);
-
-        Log::info('Paiement annulé', [
-            'transaction_id' => $transaction->id,
-            'user_id' => $transaction->user_id
-        ]);
-    }
-
-    /**
-     * Traiter un paiement nécessitant une action
-     */
-    protected function handlePaymentRequiresAction(): void
-    {
-        $paymentIntentId = $this->webhookData['id'];
-
-        $transaction = Transaction::where('stripe_payment_intent_id', $paymentIntentId)->first();
-
-        if (!$transaction) {
-            return;
-        }
-
-        $transaction->update([
-            'status' => 'requires_action',
-            'metadata' => json_encode($this->webhookData)
-        ]);
-
-        // Envoyer notification que l'action est requise
-        Log::info('Paiement nécessite une action', [
-            'transaction_id' => $transaction->id,
-            'user_id' => $transaction->user_id
-        ]);
-    }
-
-    /**
-     * Actions spécifiques selon le type de paiement
-     */
-    protected function handleSpecificPaymentType(Transaction $transaction): void
-    {
+        // Actions spécifiques selon le type de transaction
         switch ($transaction->transaction_type) {
             case 'entry_fee':
                 $this->handleEntryFeePayment($transaction);
@@ -243,85 +137,288 @@ class ProcessStripeWebhookJob implements ShouldQueue
             case 'stock_purchase':
                 $this->handleStockPurchasePayment($transaction);
                 break;
+
+            case 'penalty':
+                $this->handlePenaltyPayment($transaction);
+                break;
         }
+
+        // Envoyer email de confirmation (en plus de la facture)
+        $this->sendPaymentConfirmationEmail($transaction);
     }
 
     /**
      * Traiter le paiement du droit d'entrée
      */
-    protected function handleEntryFeePayment(Transaction $transaction): void
+    private function handleEntryFeePayment($transaction)
     {
-        // Activer le compte franchisé
         $user = $transaction->user;
-        if ($user) {
-            $user->update([
-                'is_active' => true,
-                'activated_at' => now()
-            ]);
 
-            // Mettre à jour le contrat
-            if ($transaction->franchiseContract) {
-                $transaction->franchiseContract->update([
-                    'status' => 'active',
-                    'activated_at' => now()
-                ]);
-            }
+        // Activer le franchisé
+        $user->update(['is_active' => true]);
+
+        if ($user->franchisee) {
+            $user->franchisee->update(['status' => 'active']);
         }
 
-        // Programmer les prochains paiements de royalties (12 mois)
-        $paymentService = app(PaymentService::class);
-        $paymentService->scheduleMonthlyRoyalties($transaction->user_id);
+        // Créer les échéances de royalties mensuelles
+        $this->createMonthlyRoyaltySchedules($user);
 
         Log::info('Franchisé activé après paiement droit d\'entrée', [
-            'user_id' => $transaction->user_id,
+            'user_id' => $user->id,
             'transaction_id' => $transaction->id
+        ]);
+    }
+
+    /**
+     * Créer les échéances de royalties mensuelles
+     */
+    private function createMonthlyRoyaltySchedules($user)
+    {
+        // Créer 12 échéances mensuelles
+        for ($i = 1; $i <= 12; $i++) {
+            PaymentSchedule::create([
+                'user_id' => $user->id,
+                'amount' => 0, // Sera calculé selon le CA
+                'due_date' => now()->addMonths($i)->endOfMonth(),
+                'payment_type' => 'monthly_royalty',
+                'status' => 'pending',
+                'description' => "Royalties mois " . now()->addMonths($i)->format('m/Y'),
+                'auto_calculate' => true // Calcul automatique basé sur le CA
+            ]);
+        }
+
+        Log::info('Échéances de royalties créées', [
+            'user_id' => $user->id,
+            'schedules_created' => 12
         ]);
     }
 
     /**
      * Traiter le paiement des royalties
      */
-    protected function handleRoyaltyPayment(Transaction $transaction): void
+    private function handleRoyaltyPayment($transaction)
     {
-        // Marquer la période comme payée
-        if ($transaction->metadata) {
-            $metadata = json_decode($transaction->metadata, true);
-            $period = $metadata['period'] ?? null;
+        // Marquer l'échéance comme payée
+        $schedule = PaymentSchedule::where('user_id', $transaction->user_id)
+            ->where('payment_type', 'monthly_royalty')
+            ->where('status', 'pending')
+            ->orderBy('due_date')
+            ->first();
 
-            if ($period) {
-                // Mettre à jour dans une table de suivi des royalties si nécessaire
-                Log::info('Royalty payée', [
-                    'user_id' => $transaction->user_id,
-                    'period' => $period,
-                    'amount' => $transaction->amount
-                ]);
-            }
+        if ($schedule) {
+            $schedule->update([
+                'status' => 'paid',
+                'paid_at' => now(),
+                'transaction_id' => $transaction->id
+            ]);
+        }
+
+        Log::info('Royalty payment traité', [
+            'transaction_id' => $transaction->id,
+            'schedule_id' => $schedule ? $schedule->id : null
+        ]);
+    }
+
+    /**
+     * Traiter le paiement d'achat de stocks
+     */
+    private function handleStockPurchasePayment($transaction)
+    {
+        // Ici on pourrait déclencher la préparation de commande
+        // ou d'autres actions liées aux stocks
+
+        Log::info('Stock purchase payment traité', [
+            'transaction_id' => $transaction->id,
+            'order_reference' => $transaction->order_reference
+        ]);
+    }
+
+    /**
+     * Traiter le paiement de pénalité
+     */
+    private function handlePenaltyPayment($transaction)
+    {
+        Log::info('Penalty payment traité', [
+            'transaction_id' => $transaction->id
+        ]);
+    }
+
+    /**
+     * Créditer le compte franchisé
+     */
+    private function creditFranchiseeAccount($transaction)
+    {
+        $account = FranchiseeAccount::firstOrCreate([
+            'user_id' => $transaction->user_id
+        ]);
+
+        $account->credit(
+            $transaction->amount,
+            "Paiement - {$transaction->description}",
+            $transaction
+        );
+
+        Log::info('Compte franchisé crédité', [
+            'user_id' => $transaction->user_id,
+            'amount' => $transaction->amount,
+            'new_balance' => $account->fresh()->current_balance
+        ]);
+    }
+
+    /**
+     * Envoyer email de confirmation de paiement
+     */
+    private function sendPaymentConfirmationEmail($transaction)
+    {
+        try {
+            $user = $transaction->user;
+
+            // Data pour l'email de confirmation (différent de la facture)
+            $emailData = [
+                'user' => $user,
+                'transaction' => $transaction,
+                'company_name' => 'Driv\'n Cook'
+            ];
+
+            Mail::send('emails.payment-confirmation', $emailData, function ($message) use ($user, $transaction) {
+                $message->to($user->email, $user->firstname . ' ' . $user->lastname)
+                    ->subject("Confirmation de paiement - Transaction #{$transaction->id}");
+            });
+
+            Log::info('Email de confirmation de paiement envoyé', [
+                'transaction_id' => $transaction->id,
+                'user_email' => $user->email
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de l\'envoi de l\'email de confirmation', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage()
+            ]);
         }
     }
 
     /**
-     * Traiter le paiement d'achat de stock
+     * Traiter un paiement échoué
      */
-    protected function handleStockPurchasePayment(Transaction $transaction): void
+    private function handlePaymentFailed($paymentIntent)
     {
-        // Mettre à jour les stocks ou déclencher la livraison
-        Log::info('Achat de stock confirmé', [
-            'user_id' => $transaction->user_id,
-            'amount' => $transaction->amount
+        $transaction = Transaction::where('stripe_payment_intent_id', $paymentIntent['id'])->first();
+
+        if (!$transaction) {
+            return;
+        }
+
+        $transaction->update([
+            'status' => 'failed',
+            'failure_reason' => $paymentIntent['last_payment_error']['message'] ?? 'Paiement échoué'
         ]);
 
-        // TODO: Intégration avec le système de gestion des stocks
+        // Notifier l'échec
+        $this->sendPaymentFailedEmail($transaction, $paymentIntent['last_payment_error']['message'] ?? 'Erreur inconnue');
+
+        Log::warning('Paiement échoué', [
+            'transaction_id' => $transaction->id,
+            'error' => $paymentIntent['last_payment_error']['message'] ?? 'Erreur inconnue'
+        ]);
     }
 
     /**
-     * The job failed to process.
+     * Traiter un paiement annulé
      */
-    public function failed(\Throwable $exception): void
+    private function handlePaymentCanceled($paymentIntent)
     {
-        Log::error('Échec traitement webhook Stripe', [
-            'event_type' => $this->eventType,
-            'error' => $exception->getMessage(),
-            'webhook_data' => $this->webhookData
+        $transaction = Transaction::where('stripe_payment_intent_id', $paymentIntent['id'])->first();
+
+        if (!$transaction) {
+            return;
+        }
+
+        $transaction->update([
+            'status' => 'cancelled'
         ]);
+
+        Log::info('Paiement annulé', [
+            'transaction_id' => $transaction->id
+        ]);
+    }
+
+    /**
+     * Traiter un paiement nécessitant une action
+     */
+    private function handlePaymentRequiresAction($paymentIntent)
+    {
+        $transaction = Transaction::where('stripe_payment_intent_id', $paymentIntent['id'])->first();
+
+        if (!$transaction) {
+            return;
+        }
+
+        $transaction->update([
+            'status' => 'requires_action'
+        ]);
+
+        // Notifier que l'action est requise
+        $this->sendActionRequiredEmail($transaction);
+
+        Log::info('Paiement nécessite une action', [
+            'transaction_id' => $transaction->id
+        ]);
+    }
+
+    /**
+     * Envoyer email d'échec de paiement
+     */
+    private function sendPaymentFailedEmail($transaction, $errorMessage)
+    {
+        try {
+            $user = $transaction->user;
+
+            $emailData = [
+                'user' => $user,
+                'transaction' => $transaction,
+                'error_message' => $errorMessage,
+                'retry_url' => url("/franchisee/payments/retry/{$transaction->id}")
+            ];
+
+            Mail::send('emails.payment-failed', $emailData, function ($message) use ($user, $transaction) {
+                $message->to($user->email, $user->firstname . ' ' . $user->lastname)
+                    ->subject("Échec de paiement - Transaction #{$transaction->id}");
+            });
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de l\'envoi de l\'email d\'échec', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Envoyer email pour action requise
+     */
+    private function sendActionRequiredEmail($transaction)
+    {
+        try {
+            $user = $transaction->user;
+
+            $emailData = [
+                'user' => $user,
+                'transaction' => $transaction,
+                'action_url' => url("/franchisee/payments/complete/{$transaction->id}")
+            ];
+
+            Mail::send('emails.payment-action-required', $emailData, function ($message) use ($user, $transaction) {
+                $message->to($user->email, $user->firstname . ' ' . $user->lastname)
+                    ->subject("Action requise pour votre paiement - Transaction #{$transaction->id}");
+            });
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de l\'envoi de l\'email d\'action requise', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 }

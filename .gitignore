@@ -30,3 +30,5 @@ docker-compose.override.yml
 .env*
 devops/.env*
 backend/.env*
+deploy-to-drivncook.sh
+migrate-db.sh

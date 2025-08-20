@@ -11,6 +11,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Models\Invoice;
+use App\Services\InvoiceService;
+
 
 class PaymentController extends Controller
 {
@@ -439,62 +442,252 @@ class PaymentController extends Controller
 
 
     /**
-     * Obtenir les factures d'achat de stocks du franchisé
+     * Obtenir les factures d'achat de stocks d'un franchisé
      */
-    public function getStockPurchases(Request $request)
+    public function getStockPurchases(Request $request): JsonResponse
     {
-        $transactions = Transaction::where('user_id', auth()->id())
-            ->where('transaction_type', 'stock_purchase')
-            ->with(['paymentType'])
-            ->orderBy('created_at', 'desc')
-            ->paginate($request->get('per_page', 20));
-
-        return response()->json([
-            'success' => true,
-            'data' => $transactions
-        ]);
-    }
-
-    /**
-     * Payer une facture de stock via Stripe
-     */
-    public function payStockInvoice($transactionId)
-    {
-        $transaction = Transaction::where('id', $transactionId)
-            ->where('user_id', auth()->id())
-            ->where('transaction_type', 'stock_purchase')
-            ->where('status', 'pending')
-            ->firstOrFail();
-
         try {
-            // Créer l'intention de paiement Stripe
-            $paymentIntent = \Stripe\PaymentIntent::create([
-                'amount' => $transaction->amount * 100, // en centimes
-                'currency' => 'eur',
-                'description' => $transaction->description,
-                'metadata' => [
-                    'transaction_id' => $transaction->id,
-                    'type' => 'stock_purchase'
+            $user = Auth::user();
+
+            // Validation des filtres
+            $validator = Validator::make($request->all(), [
+                'status' => 'nullable|in:pending,paid,cancelled',
+                'year' => 'nullable|integer|min:2020|max:' . (date('Y') + 1),
+                'month' => 'nullable|integer|min:1|max:12',
+                'per_page' => 'nullable|integer|min:1|max:50'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Paramètres invalides',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            // Récupérer les factures de type stock_purchase
+            $query = Invoice::with(['transaction', 'user'])
+                ->where('user_id', $user->id)
+                ->whereHas('transaction', function($q) {
+                    $q->where('transaction_type', 'stock_purchase');
+                })
+                ->orderBy('created_at', 'desc');
+
+            // Appliquer les filtres
+            if ($request->status) {
+                $query->where('status', $request->status);
+            }
+
+            if ($request->year) {
+                $query->whereYear('issue_date', $request->year);
+            }
+
+            if ($request->month) {
+                $query->whereMonth('issue_date', $request->month);
+            }
+
+            $perPage = $request->get('per_page', 15);
+            $invoices = $query->paginate($perPage);
+
+            // Statistiques des achats de stocks
+            $stockStats = [
+                'total_stock_invoices' => Invoice::where('user_id', $user->id)
+                    ->whereHas('transaction', function($q) {
+                        $q->where('transaction_type', 'stock_purchase');
+                    })->count(),
+                'total_stock_amount' => Invoice::where('user_id', $user->id)
+                    ->whereHas('transaction', function($q) {
+                        $q->where('transaction_type', 'stock_purchase');
+                    })->sum('amount_ttc'),
+                'pending_stock_amount' => Invoice::where('user_id', $user->id)
+                    ->where('status', 'pending')
+                    ->whereHas('transaction', function($q) {
+                        $q->where('transaction_type', 'stock_purchase');
+                    })->sum('amount_ttc'),
+                'paid_stock_amount' => Invoice::where('user_id', $user->id)
+                    ->where('status', 'paid')
+                    ->whereHas('transaction', function($q) {
+                        $q->where('transaction_type', 'stock_purchase');
+                    })->sum('amount_ttc'),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'invoices' => $invoices,
+                    'stats' => $stockStats
                 ]
             ]);
 
-            // Mettre à jour la transaction avec l'ID Stripe
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des factures de stocks', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des factures'
+            ], 500);
+        }
+    }
+
+    /**
+     * Payer une facture de stock spécifique
+     */
+    public function payStockInvoice($transactionId): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+
+            // Trouver la transaction et sa facture
+            $transaction = Transaction::with('invoice')
+                ->where('id', $transactionId)
+                ->where('user_id', $user->id)
+                ->where('transaction_type', 'stock_purchase')
+                ->first();
+
+            if (!$transaction) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaction non trouvée'
+                ], 404);
+            }
+
+            // Vérifier qu'il y a une facture associée
+            if (!$transaction->invoice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune facture trouvée pour cette transaction'
+                ], 404);
+            }
+
+            $invoice = $transaction->invoice;
+
+            // Vérifier que la facture est en attente
+            if ($invoice->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cette facture n\'est pas en attente de paiement'
+                ], 400);
+            }
+
+            // Créer un intent de paiement Stripe
+            $paymentIntent = $this->paymentService->createPaymentIntent(
+                $invoice->amount_ttc,
+                $user,
+                "Paiement stocks - Facture {$invoice->invoice_number}",
+                [
+                    'invoice_id' => $invoice->id,
+                    'transaction_id' => $transaction->id,
+                    'order_reference' => $transaction->order_reference
+                ]
+            );
+
+            // Mettre à jour la transaction avec le nouveau payment_intent
             $transaction->update([
                 'stripe_payment_intent_id' => $paymentIntent->id,
                 'status' => 'processing'
             ]);
 
+            Log::info('Intent de paiement créé pour facture de stock', [
+                'user_id' => $user->id,
+                'invoice_id' => $invoice->id,
+                'transaction_id' => $transaction->id,
+                'payment_intent_id' => $paymentIntent->id,
+                'amount' => $invoice->amount_ttc
+            ]);
+
             return response()->json([
                 'success' => true,
-                'client_secret' => $paymentIntent->client_secret,
-                'transaction' => $transaction
+                'data' => [
+                    'client_secret' => $paymentIntent->client_secret,
+                    'payment_intent_id' => $paymentIntent->id,
+                    'amount' => $invoice->amount_ttc,
+                    'invoice' => $invoice,
+                    'transaction' => $transaction
+                ]
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Erreur lors de la création du paiement de facture de stock', [
+                'user_id' => Auth::id(),
+                'transaction_id' => $transactionId,
+                'error' => $e->getMessage()
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la création du paiement: ' . $e->getMessage()
+                'message' => 'Erreur lors de la création du paiement'
             ], 500);
         }
     }
+
+    /**
+     * Obtenir le résumé des factures impayées d'un franchisé
+     */
+    public function getUnpaidInvoicesSummary(): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+
+            // Factures en attente
+            $pendingInvoices = Invoice::where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->with(['transaction'])
+                ->orderBy('due_date', 'asc')
+                ->get();
+
+            // Factures en retard
+            $overdueInvoices = $pendingInvoices->filter(function($invoice) {
+                return $invoice->isOverdue();
+            });
+
+            // Montants totaux
+            $totalPending = $pendingInvoices->sum('amount_ttc');
+            $totalOverdue = $overdueInvoices->sum('amount_ttc');
+
+            // Prochaine échéance
+            $nextDueInvoice = $pendingInvoices->sortBy('due_date')->first();
+
+            // Répartition par type
+            $byType = $pendingInvoices->groupBy('transaction.transaction_type')
+                ->map(function($invoices, $type) {
+                    return [
+                        'count' => $invoices->count(),
+                        'total_amount' => $invoices->sum('amount_ttc')
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'summary' => [
+                        'total_pending_invoices' => $pendingInvoices->count(),
+                        'total_overdue_invoices' => $overdueInvoices->count(),
+                        'total_pending_amount' => $totalPending,
+                        'total_overdue_amount' => $totalOverdue,
+                        'next_due_date' => $nextDueInvoice ? $nextDueInvoice->due_date->format('Y-m-d') : null,
+                        'next_due_amount' => $nextDueInvoice ? $nextDueInvoice->amount_ttc : 0
+                    ],
+                    'by_type' => $byType,
+                    'recent_pending' => $pendingInvoices->take(5),
+                    'urgent_overdue' => $overdueInvoices->take(3)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération du résumé des factures', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération du résumé'
+            ], 500);
+        }
+    }
+
+
 }

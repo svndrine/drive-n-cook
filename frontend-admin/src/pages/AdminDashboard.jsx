@@ -12,15 +12,15 @@ import FranchiseeDetails from './FranchiseeDetails.jsx';
 import { getFranchisees } from '../services/api.js';
 import { useUser } from '../context/UserContext.jsx';
 import WarehouseOverviewView from './WarehouseOverviewView.jsx';
-// import StockManagementView from './StockManagementView.jsx';
-// import StockAlertsView from './StockAlertsView.jsx';
-// import StockMovementsView from './StockMovementsView.jsx';
-// import ProductCatalogView from './ProductCatalogView.jsx';
+import StockManagementView from './StockManagementView.jsx';
+import StockAlertsView from './StockAlertsView.jsx';
+import StockMovementsView from './StockMovementsView.jsx';
+import ProductCatalogView from './ProductCatalogView.jsx';
 import AllOrdersView from './AllOrdersView.jsx';
- import PendingOrdersView from './PendingOrdersView.jsx';
-// import PreparingOrdersView from './PreparingOrdersView.jsx';
-// import DeliveredOrdersView from './DeliveredOrdersView.jsx';
-// import OrderStatsView from './OrderStatsView.jsx';
+import PendingOrdersView from './PendingOrdersView.jsx';
+import PreparingOrdersView from './PreparingOrdersView.jsx';
+import DeliveredOrdersView from './DeliveredOrdersView.jsx';
+import OrderStatsView from './OrderStatsView.jsx';
 
 
 // Composant wrapper pour FranchiseeDetails avec paramètres
@@ -208,16 +208,35 @@ function AdminDashboard() {
                         <Route path="warehouse/overview" element={
                             <WarehouseOverviewView theme={theme} />
                         } />
-
+                        <Route path="warehouse/stock-management" element={
+                            <StockManagementView theme={theme} />
+                        } />
+                        <Route path="warehouse/alerts" element={
+                            <StockAlertsView theme={theme} />
+                        } />
 
 
                         {/* NOUVEAU: Routes Commandes */}
                         <Route path="orders/all" element={
                             <AllOrdersView theme={theme} />
                         } />
-
                         <Route path="orders/pending" element={
                             <PendingOrdersView theme={theme} />
+                        } />
+                        <Route path="warehouse/catalog" element={
+                            <ProductCatalogView theme={theme} />
+                        } />
+                        <Route path="orders/preparing" element={
+                            <PreparingOrdersView theme={theme} />
+                        } />
+                        <Route path="orders/statistics" element={
+                            <OrderStatsView theme={theme} />
+                        } />
+                        <Route path="orders/delivered" element={
+                            <DeliveredOrdersView theme={theme} />
+                        } />
+                        <Route path="warehouse/movements" element={
+                            <StockMovementsView theme={theme} />
                         } />
 
 

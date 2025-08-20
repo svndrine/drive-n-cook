@@ -69,4 +69,19 @@ class Kernel extends HttpKernel
         'superadmin' => \App\Http\Middleware\IsSuperadmin::class,
         'admin' => \App\Http\Middleware\IsAdmin::class,
     ];
+
+
+
+    protected function schedule(Schedule $schedule)
+    {
+        // Vérifier les alertes de stock toutes les 15 minutes
+        $schedule->job(CheckStockAlertsJob::class)
+            ->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        // Ou plus fréquent pour les environnements critiques
+        // $schedule->job(CheckStockAlertsJob::class)->everyFiveMinutes();
+    }
+
 }

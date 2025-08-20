@@ -6,7 +6,7 @@ use App\Http\Controllers\FranchiseeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\WebhookController;
-use App\Http\Controllers\Api\PaymentController; // AJOUT DE L'IMPORT MANQUANT
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Middleware\IsSuperadmin;
 use App\Http\Controllers\PublicLinkController;
 use App\Http\Controllers\Api\WarehouseController;
@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\FranchiseOrderController;
 use App\Http\Controllers\Api\StockController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Api\InvoiceController;
 
 
 
@@ -255,3 +256,53 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 // Routes publiques pour le catalogue (franchisés non connectés)
 Route::get('/public/warehouses/{warehouseId}/catalog', [ProductController::class, 'catalog']);
+
+
+
+// Routes pour les franchisés (authentifiés)
+Route::middleware(['auth:sanctum'])->group(function () {
+
+    // FACTURES FRANCHISÉS
+    Route::prefix('invoices')->group(function () {
+        Route::get('/', [InvoiceController::class, 'index']); // Liste mes factures
+        Route::get('/{id}', [InvoiceController::class, 'show']); // Détails d'une facture
+        Route::get('/{id}/download', [InvoiceController::class, 'downloadPdf']); // Télécharger PDF
+        Route::post('/{id}/pay', [InvoiceController::class, 'payInvoice']); // Payer une facture
+    });
+
+    // PAIEMENTS FRANCHISÉS (existant - à étendre)
+    Route::prefix('payments')->group(function () {
+        // Routes existantes...
+
+        // NOUVELLES ROUTES pour les factures de stocks
+        Route::get('/stock-purchases', [PaymentController::class, 'getStockPurchases']); // Factures stocks
+        Route::post('/pay-stock-invoice/{transactionId}', [PaymentController::class, 'payStockInvoice']); // Payer facture stock
+    });
+});
+
+// Routes ADMIN (avec middleware admin)
+Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+
+    // GESTION FACTURES ADMIN
+    Route::prefix('invoices')->group(function () {
+        Route::get('/', [InvoiceController::class, 'adminIndex']); // Toutes les factures
+        Route::post('/create', [InvoiceController::class, 'adminCreateInvoice']); // Créer facture manuelle
+        Route::put('/{id}/mark-paid', [InvoiceController::class, 'adminMarkAsPaid']); // Marquer comme payée
+        Route::put('/{id}/cancel', [InvoiceController::class, 'adminCancelInvoice']); // Annuler facture
+        Route::post('/{id}/resend', [InvoiceController::class, 'adminResendInvoice']); // Renvoyer par email
+        Route::get('/stats', [InvoiceController::class, 'adminStats']); // Statistiques avancées
+        Route::get('/{id}/download', [InvoiceController::class, 'downloadPdf']); // Admin peut télécharger toutes les factures
+    });
+
+    // PAIEMENTS ADMIN (existant - à étendre si besoin)
+    Route::prefix('payments')->group(function () {
+        // Routes existantes...
+        // Ajouter d'autres routes admin si nécessaire
+    });
+});
+
+// Routes publiques (si besoin)
+Route::prefix('public')->group(function () {
+    // Aucune route publique pour les factures (sécurité)
+    // Toutes les factures nécessitent une authentification
+});

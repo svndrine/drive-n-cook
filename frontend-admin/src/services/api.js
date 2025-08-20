@@ -1013,37 +1013,6 @@ export async function getWarehouseStocks(warehouseId, filters = {}) {
     return await response.json();
 }
 
-/**
- * Obtenir les alertes de stock globales
- * @param {object} filters - Filtres optionnels (warehouse_id)
- * @returns {Promise<object>} Alertes de stock
- */
-export async function getStockAlerts(filters = {}) {
-    const token = localStorage.getItem("access_token");
-
-    if (!token) {
-        throw new Error("Aucun token d'accès trouvé.");
-    }
-
-    const queryParams = new URLSearchParams(filters);
-    const queryString = queryParams.toString();
-    const url = `${API_URL}/stock/alerts${queryString ? '?' + queryString : ''}`;
-
-    const response = await fetch(url, {
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${token}`,
-            "Accept": "application/json"
-        }
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des alertes`);
-    }
-
-    return await response.json();
-}
 
 /**
  * Effectuer un ajustement de stock (admin uniquement)
@@ -1387,6 +1356,839 @@ export async function getOrderStats(filters = {}) {
     if (!response.ok) {
         const error = await response.json().catch(() => ({ message: response.statusText }));
         throw new Error(error.message || `Erreur ${response.status} lors de la récupération des statistiques`);
+    }
+
+    return await response.json();
+}
+
+
+
+
+/**
+ * Obtenir l'historique des mouvements de stock
+ * @param {object} filters - Filtres optionnels
+ * @returns {Promise<object>} Historique des mouvements
+ */
+export async function getStockMovements(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value);
+        }
+    });
+
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/stock/movements${queryString ? '?' + queryString : ''}`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des mouvements`);
+    }
+
+    return await response.json();
+}
+// =====================================
+// FONCTIONS POUR LA GESTION DES PRODUITS ET CATÉGORIES
+// À ajouter à la fin de votre frontend-admin/src/services/api.js
+// =====================================
+
+/**
+ * Obtenir la liste des produits
+ * @param {object} filters - Filtres optionnels (search, category_id, is_mandatory, is_active, sort_by, sort_direction, page, per_page)
+ * @returns {Promise<object>} Liste des produits
+ */
+export async function getProducts(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value);
+        }
+    });
+
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/products${queryString ? '?' + queryString : ''}`;
+
+    console.log('API call getProducts:', url);
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des produits`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Obtenir les détails d'un produit
+ * @param {number} id - ID du produit
+ * @returns {Promise<object>} Détails du produit
+ */
+export async function getProduct(id) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/products/${id}`, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération du produit`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Créer un nouveau produit (admin uniquement)
+ * @param {object} productData - Données du produit
+ * @returns {Promise<object>} Produit créé
+ */
+export async function createProduct(productData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call createProduct:', productData);
+
+    const response = await fetch(`${API_URL}/products`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(productData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la création du produit`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Mettre à jour un produit (admin uniquement)
+ * @param {number} id - ID du produit
+ * @param {object} productData - Nouvelles données
+ * @returns {Promise<object>} Produit mis à jour
+ */
+export async function updateProduct(id, productData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call updateProduct:', id, productData);
+
+    const response = await fetch(`${API_URL}/products/${id}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(productData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la mise à jour du produit`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Supprimer un produit (admin uniquement)
+ * @param {number} id - ID du produit
+ * @returns {Promise<object>} Confirmation de suppression
+ */
+export async function deleteProduct(id) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call deleteProduct:', id);
+
+    const response = await fetch(`${API_URL}/products/${id}`, {
+        method: "DELETE",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la suppression du produit`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Dupliquer un produit (admin uniquement)
+ * @param {number} id - ID du produit à dupliquer
+ * @param {object} productData - Données modifiées pour la copie
+ * @returns {Promise<object>} Produit dupliqué
+ */
+export async function duplicateProduct(id, productData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call duplicateProduct:', id, productData);
+
+    const response = await fetch(`${API_URL}/products/${id}/duplicate`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(productData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la duplication du produit`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Import en lot de produits (admin uniquement)
+ * @param {FormData} formData - Fichier CSV à importer
+ * @returns {Promise<object>} Résultat de l'import
+ */
+export async function bulkImportProducts(formData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call bulkImportProducts');
+
+    const response = await fetch(`${API_URL}/products/bulk-import`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+            // Note: Ne pas définir Content-Type pour FormData, le navigateur le fera automatiquement
+        },
+        body: formData
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de l'import des produits`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Obtenir les alertes de stock pour les produits
+ * @param {object} filters - Filtres optionnels
+ * @returns {Promise<object>} Alertes de stock
+ */
+export async function getProductStockAlerts(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams(filters);
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/products/alerts/stock${queryString ? '?' + queryString : ''}`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des alertes`);
+    }
+
+    return await response.json();
+}
+
+// =====================================
+// FONCTIONS POUR LES CATÉGORIES DE PRODUITS
+// =====================================
+
+/**
+ * Obtenir la liste des catégories de produits
+ * @param {object} filters - Filtres optionnels (active, search)
+ * @returns {Promise<object>} Liste des catégories
+ */
+export async function getProductCategories(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value);
+        }
+    });
+
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/product-categories${queryString ? '?' + queryString : ''}`;
+
+    console.log('API call getProductCategories:', url);
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des catégories`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Obtenir les détails d'une catégorie
+ * @param {number} id - ID de la catégorie
+ * @returns {Promise<object>} Détails de la catégorie
+ */
+export async function getProductCategory(id) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/product-categories/${id}`, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération de la catégorie`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Créer une nouvelle catégorie (admin uniquement)
+ * @param {object} categoryData - Données de la catégorie
+ * @returns {Promise<object>} Catégorie créée
+ */
+export async function createProductCategory(categoryData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/product-categories`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(categoryData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la création de la catégorie`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Mettre à jour une catégorie (admin uniquement)
+ * @param {number} id - ID de la catégorie
+ * @param {object} categoryData - Nouvelles données
+ * @returns {Promise<object>} Catégorie mise à jour
+ */
+export async function updateProductCategory(id, categoryData) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/product-categories/${id}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(categoryData)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la mise à jour de la catégorie`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Supprimer une catégorie (admin uniquement)
+ * @param {number} id - ID de la catégorie
+ * @returns {Promise<object>} Confirmation de suppression
+ */
+export async function deleteProductCategory(id) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/product-categories/${id}`, {
+        method: "DELETE",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la suppression de la catégorie`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Basculer le statut d'une catégorie (admin uniquement)
+ * @param {number} id - ID de la catégorie
+ * @returns {Promise<object>} Catégorie mise à jour
+ */
+export async function toggleProductCategoryStatus(id) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/product-categories/${id}/toggle-status`, {
+        method: "PATCH",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la mise à jour du statut`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Réorganiser l'ordre des catégories (admin uniquement)
+ * @param {Array} categories - Tableau des catégories avec leur nouvel ordre
+ * @returns {Promise<object>} Confirmation de la réorganisation
+ */
+export async function reorderProductCategories(categories) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/product-categories/reorder`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify({ categories })
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la réorganisation`);
+    }
+
+    return await response.json();
+}
+
+
+
+// =====================================
+// FONCTIONS API POUR LES ALERTES DE STOCK
+// À ajouter à la fin de votre frontend-admin/src/services/api.js
+// =====================================
+
+/**
+ * Obtenir les alertes de stock
+ * @param {object} filters - Filtres optionnels (warehouse_id, alert_type, severity, status, search)
+ * @returns {Promise<object>} Liste des alertes
+ */
+export async function getStockAlerts(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value);
+        }
+    });
+
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/stock/alerts${queryString ? '?' + queryString : ''}`;
+
+    console.log('API call getStockAlerts:', url);
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des alertes`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Résoudre une alerte de stock (admin uniquement)
+ * @param {number} alertId - ID de l'alerte
+ * @param {string} notes - Notes optionnelles
+ * @returns {Promise<object>} Alerte résolue
+ */
+export async function resolveStockAlert(alertId, notes = '') {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call resolveStockAlert:', alertId, notes);
+
+    const response = await fetch(`${API_URL}/stock/alerts/${alertId}/resolve`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify({ notes })
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la résolution de l'alerte`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Ignorer une alerte de stock (admin uniquement)
+ * @param {number} alertId - ID de l'alerte
+ * @param {string} notes - Notes optionnelles
+ * @returns {Promise<object>} Alerte ignorée
+ */
+export async function dismissStockAlert(alertId, notes = '') {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call dismissStockAlert:', alertId, notes);
+
+    const response = await fetch(`${API_URL}/stock/alerts/${alertId}/dismiss`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify({ notes })
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de l'action sur l'alerte`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Obtenir les statistiques des alertes de stock
+ * @param {object} filters - Filtres optionnels (warehouse_id, date_from, date_to)
+ * @returns {Promise<object>} Statistiques des alertes
+ */
+export async function getStockAlertsStats(filters = {}) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const queryParams = new URLSearchParams(filters);
+    const queryString = queryParams.toString();
+    const url = `${API_URL}/stock/alerts/stats${queryString ? '?' + queryString : ''}`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la récupération des statistiques`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Configurer les seuils d'alerte pour un produit (admin uniquement)
+ * @param {number} productId - ID du produit
+ * @param {object} thresholds - Seuils (minimum_stock, maximum_stock)
+ * @returns {Promise<object>} Produit mis à jour
+ */
+export async function configureAlertThresholds(productId, thresholds) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call configureAlertThresholds:', productId, thresholds);
+
+    const response = await fetch(`${API_URL}/products/${productId}/alert-thresholds`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(thresholds)
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la configuration des seuils`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Activer/désactiver les alertes pour un produit (admin uniquement)
+ * @param {number} productId - ID du produit
+ * @param {boolean} enabled - Activer ou désactiver
+ * @returns {Promise<object>} Produit mis à jour
+ */
+export async function toggleProductAlerts(productId, enabled) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    const response = await fetch(`${API_URL}/products/${productId}/toggle-alerts`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify({ alerts_enabled: enabled })
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la configuration des alertes`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Déclencher une vérification manuelle des alertes (admin uniquement)
+ * @returns {Promise<object>} Résultat de la vérification
+ */
+export async function triggerAlertsCheck() {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call triggerAlertsCheck');
+
+    const response = await fetch(`${API_URL}/stock/alerts/trigger-check`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors du déclenchement de la vérification`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Marquer plusieurs alertes comme résolues en lot (admin uniquement)
+ * @param {Array} alertIds - Tableau des IDs d'alertes
+ * @param {string} notes - Notes optionnelles
+ * @returns {Promise<object>} Résultat de l'opération
+ */
+export async function bulkResolveAlerts(alertIds, notes = '') {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call bulkResolveAlerts:', alertIds, notes);
+
+    const response = await fetch(`${API_URL}/stock/alerts/bulk-resolve`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify({
+            alert_ids: alertIds,
+            notes
+        })
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la résolution en lot`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Ignorer plusieurs alertes en lot (admin uniquement)
+ * @param {Array} alertIds - Tableau des IDs d'alertes
+ * @param {string} notes - Notes optionnelles
+ * @returns {Promise<object>} Résultat de l'opération
+ */
+export async function bulkDismissAlerts(alertIds, notes = '') {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        throw new Error("Aucun token d'accès trouvé.");
+    }
+
+    console.log('API call bulkDismissAlerts:', alertIds, notes);
+
+    const response = await fetch(`${API_URL}/stock/alerts/bulk-dismiss`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+        },
+        body: JSON.stringify({
+            alert_ids: alertIds,
+            notes
+        })
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || `Erreur ${response.status} lors de la résolution en lot`);
     }
 
     return await response.json();
